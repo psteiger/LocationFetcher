@@ -18,6 +18,10 @@ import com.google.firebase.auth.FirebaseAuth
 
 class LocationService : Service(), LocationSource {
 
+    companion object {
+        var WAIT_FOR_FIREBASE_AUTH = false
+    }
+
     private var mapListener: LocationSource.OnLocationChangedListener? = null
 
     private var currentLocation: Location? = null
@@ -80,25 +84,32 @@ class LocationService : Service(), LocationSource {
         super.onCreate()
 
         logd("Creating Location Service")
-        FirebaseAuth.getInstance().addAuthStateListener { auth ->
-            logd("Adding Firebase Auth State listener $auth")
-            if (auth.currentUser != null) {
-                logd("User authenticated: ${auth.currentUser}")
 
-                startRequestingLocationUpdates()
-                try {
-                    fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-                        location?.let {
-                            logd("Fused location client got location $it")
-                            currentLocation = it
-                        } // In some rare situations this can be null
-                    }
-                } catch (e: SecurityException) { /* should never happen */
+        if (WAIT_FOR_FIREBASE_AUTH) {
+            FirebaseAuth.getInstance().addAuthStateListener { auth ->
+                logd("Adding Firebase Auth State listener $auth")
+                if (auth.currentUser != null) {
+                    logd("User authenticated: ${auth.currentUser}")
+                    fetchLocation()
                 }
             }
+        } else {
+            fetchLocation()
         }
     }
 
+    private fun fetchLocation() {
+        startRequestingLocationUpdates()
+        try {
+            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                location?.let {
+                    logd("Fused location client got location $it")
+                    currentLocation = it
+                } // In some rare situations this can be null
+            }
+        } catch (e: SecurityException) { /* should never happen */
+        }
+    }
     // continue running until it is explicitly stopped: return sticky
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int) = Service.START_NOT_STICKY
 
