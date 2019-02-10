@@ -57,29 +57,13 @@ class LocationService : Service(), LocationSource {
     }
     private val binder = LocalBinder()
 
-
     /**
      * end vars
      */
 
-    /* update whoever registers about location changes */
-    fun addLocationListener(listener: ILocationListener) {
-        logd("Adding location listener $listener")
-        locationChangedListeners.add(listener)
-        broadcastLocation()
-    }
-
-    fun removeLocationListener(listener: ILocationListener) {
-        logd("Removing location listener $listener")
-        locationChangedListeners.remove(listener)
-    }
-
-    override fun activate(listener: LocationSource.OnLocationChangedListener) {
-        mapListener = listener
-    }
-
-    override fun deactivate() = Unit
-
+    /**
+     * Overrides
+     */
     override fun onCreate() {
         super.onCreate()
 
@@ -98,6 +82,39 @@ class LocationService : Service(), LocationSource {
         }
     }
 
+    // continue running until it is explicitly stopped: return sticky
+    override fun onStartCommand(intent: Intent, flags: Int, startId: Int) = Service.START_NOT_STICKY
+
+    override fun onBind(intent: Intent) = binder
+
+
+    /**
+     * Updates whoever registers about location changes.
+     */
+    fun addLocationListener(listener: ILocationListener) {
+        logd("Adding location listener $listener")
+        locationChangedListeners.add(listener)
+        broadcastLocation()
+    }
+
+    fun removeLocationListener(listener: ILocationListener) {
+        logd("Removing location listener $listener")
+        locationChangedListeners.remove(listener)
+    }
+
+    /**
+     * Google Maps needs a listener of its own type.
+     * Activates or deactivates map listener.
+     */
+    override fun activate(listener: LocationSource.OnLocationChangedListener) {
+        mapListener = listener
+    }
+
+    override fun deactivate() = Unit
+
+    /**
+     * Location methods
+     */
     private fun fetchLocation() {
         startRequestingLocationUpdates()
         try {
@@ -110,16 +127,9 @@ class LocationService : Service(), LocationSource {
         } catch (e: SecurityException) { /* should never happen */
         }
     }
-    // continue running until it is explicitly stopped: return sticky
-    override fun onStartCommand(intent: Intent, flags: Int, startId: Int) = Service.START_NOT_STICKY
 
-    override fun onBind(intent: Intent) = binder
-
-    /**
-     * Location methods
-     */
     private fun broadcastLocation() = currentLocation?.let { location ->
-        logd("Broadcasting lcoation $location to listeners")
+        logd("Broadcasting location $location to listeners")
         locationChangedListeners.forEach {
             logd("Broadcasting location $location to listener $it")
             it.onLocationReceived(location)
@@ -129,16 +139,6 @@ class LocationService : Service(), LocationSource {
             logd("Broadcasting location $location to map listener $this")
             onLocationChanged(location)
         }
-    }
-
-
-    /**
-     * Class used for the client Binder.  Because we know this service always
-     * runs in the same process as its clients, we don't need to deal with IPC.
-     */
-    inner class LocalBinder : Binder() {
-        val service: LocationService
-            get() = this@LocationService
     }
 
     private fun stopRequestingLocationUpdates() {
@@ -167,19 +167,31 @@ class LocationService : Service(), LocationSource {
             try {
                 locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0f, gpsLocationManagerListener)
             } catch (_: SecurityException) {
-            } catch (_: IllegalArgumentException) {} /* provider doesn't exist: gps */
+            } catch (_: IllegalArgumentException) {} // provider doesn't exist: gps
 
             try {
                 locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0f, networkLocationManagerListener)
             } catch (_: SecurityException) {
-            } catch (_: IllegalArgumentException) {}
+            } catch (_: IllegalArgumentException) {} // provider doesn't exist: network
 
             try {
                 fusedLocationClient.requestLocationUpdates(fusedLocationClientRequest, fusedLocationClientCallback, null)
-            } catch (_: SecurityException) { /* should never happen */ }
+            } catch (_: SecurityException) {} // should never happen
         }
     }
 
+    /**
+     * Class used for the client Binder.  Because we know this service always
+     * runs in the same process as its clients, we don't need to deal with IPC.
+     */
+    inner class LocalBinder : Binder() {
+        val service: LocationService
+            get() = this@LocationService
+    }
+
+    /**
+     * On Debug builds, log automatically.
+     */
     private fun logd(msg: String) {
         if (BuildConfig.DEBUG) Log.d(this::class.java.simpleName, msg)
     }
