@@ -24,7 +24,7 @@ On root level:
 
 ### On Activity
 
-TODO: Abstract that activity into the library.
+`TODO: Abstract that activity into the library.`
 
 Setup the activity or fragment you want to be location-aware as follows.
 
@@ -68,6 +68,9 @@ We'll need to explicitly ask the user for permission to access location.
 Substitute `goOn()` with code you need to run after permission is granted.
 
 ```
+val HAS_LOCATION_PERMISSION_CODE = 1
+val LOCATION_PERMISSION = arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+
 override fun onStart() {
     super.onStart()
 
@@ -123,4 +126,12 @@ override fun onLocationReceived(l: Location) {
 
 Location Service stops asking Android for location updates once a location is gotten. I plan to make it a configurable feature on future releases.
 
-### 
+## Using Firebase Auth?
+
+If you want to make the location service wait for user authentication before asking for location updates, you can:
+
+```
+LocationService.waitForFirebaseAuth = true
+```
+
+on Activity's onCreate or App's onCreate.
