@@ -19,7 +19,7 @@ import com.google.firebase.auth.FirebaseAuth
 class LocationService : Service(), LocationSource {
 
     companion object {
-        var WAIT_FOR_FIREBASE_AUTH = false
+        var waitForFirebaseAuth: Boolean = false
     }
 
     private var mapListener: LocationSource.OnLocationChangedListener? = null
@@ -85,7 +85,7 @@ class LocationService : Service(), LocationSource {
 
         logd("Creating Location Service")
 
-        if (WAIT_FOR_FIREBASE_AUTH) {
+        if (waitForFirebaseAuth) {
             FirebaseAuth.getInstance().addAuthStateListener { auth ->
                 logd("Adding Firebase Auth State listener $auth")
                 if (auth.currentUser != null) {
