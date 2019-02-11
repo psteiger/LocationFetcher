@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Location Service</string>
+    <string name="need_location_permission">We need your permission to continue</string>
 </resources>
