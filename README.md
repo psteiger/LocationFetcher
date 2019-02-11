@@ -11,7 +11,7 @@ The service uses GPS and Network and needs ACCESS_FINE_LOCATION.
 ### Using Gradle
 
 ```
-implementation 'com.github.psteiger:location-service:0.4'
+implementation 'com.github.psteiger:location-service:0.7'
 ```
 
 ### On Manifest
@@ -24,9 +24,42 @@ On root level:
 
 ### On Activity
 
-`TODO: Abstract that activity into the library.`
+Now, the activity that will use the service must deal with:
 
-Setup the activity or fragment you want to be location-aware as follows.
+1. asking the user for permission to access device, 
+2. creating an instance of the location service, 
+3. binding (and unbinding) to the location service instance,
+4. listening to location updates from the location service instance.
+
+There are two options for achieving this: use the base abstract activity provided by the library (recommended), or implement your own logic by hand.
+
+#### Using provided base activity
+
+Make your Activity
+
+1. Extend `LocationActivity` and implement `ILocationListener`
+2. Override `onLocationServiceConnected()` and `onLocationReceived()`
+
+```
+import com.freelapp.libs.locationservice.LocationActivity
+
+class MyActivity : LocationActivity(), ILocationListener {
+
+    private var currentLocation: Location? = null
+
+    override fun onLocationServiceConnected() {
+        addLocationListener(this)
+    }
+    
+    override fun onLocationReceived(l: Location) {
+        currentLocation = l
+    }
+}
+```
+
+#### Creating your own logic to deal with the service: an example
+
+You can setup the activity or fragment you want to be location-aware as follows.
 
 First, we need to deal with service binding.
 
@@ -128,10 +161,12 @@ Location Service stops asking Android for location updates once a location is go
 
 ## Using Firebase Auth?
 
-If you want to make the location service wait for user authentication before asking for location updates, you can:
+If you want to make the location service wait for Firebase user authentication before asking the device for location updates, you can:
 
 ```
 LocationService.waitForFirebaseAuth = true
 ```
 
 on Activity's onCreate or App's onCreate.
+
+This is useful when, on location changes, you trigger Firebase database changes that demands the user to be authenticated for permission to read/write to the database.
