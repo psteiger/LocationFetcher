@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
-import android.location.Location
 import android.os.Bundle
 import android.os.IBinder
 import androidx.appcompat.app.AppCompatActivity
@@ -25,13 +24,10 @@ abstract class LocationActivity : AppCompatActivity() {
         val LOCATION_PERMISSION = arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
     }
 
-    protected var locationService: LocationService? = null
+    var locationService: LocationService? = null
         private set
 
-    protected var currentLocation: Location? = null
-
-    protected var bound: Boolean = false
-        private set
+    private var bound: Boolean = false
 
     private val locationServiceConn: ServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
