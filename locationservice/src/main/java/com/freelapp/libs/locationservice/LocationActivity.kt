@@ -25,12 +25,12 @@ abstract class LocationActivity : AppCompatActivity() {
         val LOCATION_PERMISSION = arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
     }
 
-    internal var locationService: LocationService? = null
+    protected var locationService: LocationService? = null
         private set
 
-    internal var currentLocation: Location? = null
+    protected var currentLocation: Location? = null
 
-    internal var bound: Boolean = false
+    protected var bound: Boolean = false
         private set
 
     private val locationServiceConn: ServiceConnection = object : ServiceConnection {
@@ -105,8 +105,8 @@ abstract class LocationActivity : AppCompatActivity() {
     }
 
     // override this !
-    internal open fun onLocationServiceConnected() = Unit
-    internal open fun onLocationServiceDisconnected() = Unit
+    protected open fun onLocationServiceConnected() = Unit
+    protected open fun onLocationServiceDisconnected() = Unit
 
     sealed class LocationServiceMsg {
         class AddLocationListener(val listener: ILocationListener) : LocationServiceMsg()
