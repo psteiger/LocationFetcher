@@ -17,7 +17,7 @@ import kotlinx.coroutines.channels.actor
 /**
  * Service connection vars and binding code common to all classes is in this abstract class.
  */
-abstract class LocationActivity : AppCompatActivity() {
+abstract class LocationActivity : AppCompatActivity(), ILocationListener {
 
     companion object {
         const val HAS_LOCATION_PERMISSION_CODE = 11666
@@ -31,9 +31,11 @@ abstract class LocationActivity : AppCompatActivity() {
 
     private val locationServiceConn: ServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
-            locationService = (service as LocationService.LocalBinder).service
+            locationService = (service as LocationService.LocalBinder).service.apply {
+                addLocationListener(this@LocationActivity)
+            }
             bound = true
-            onLocationServiceConnected() // overridden and implemented by children activities
+            onLocationServiceConnected() // optionally overridden by children activities
         }
 
         override fun onServiceDisconnected(arg0: ComponentName) {
@@ -46,13 +48,14 @@ abstract class LocationActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        if (!bound) askForPermissionAndBind()
+        askForPermissionAndBindIfNotAlready()
     }
 
     override fun onDestroy() {
         super.onDestroy()
 
         if (bound) {
+            locationService?.removeLocationListener(this)
             unbindService(locationServiceConn)
             bound = false
         }
@@ -64,7 +67,7 @@ abstract class LocationActivity : AppCompatActivity() {
         Context.BIND_AUTO_CREATE
     )
 
-    private fun askForPermissionAndBind() {
+    private fun askForPermissionAndBindIfNotAlready() {
         if (!bound) {
             if (ContextCompat.checkSelfPermission(this,
                     LOCATION_PERMISSION.first()) != PackageManager.PERMISSION_GRANTED) {
@@ -112,7 +115,7 @@ abstract class LocationActivity : AppCompatActivity() {
     @ObsoleteCoroutinesApi
     private val locationServiceActor = GlobalScope.actor<LocationServiceMsg>(Dispatchers.Main) {
         for (msg in channel) {
-            while (!bound) delay(500)
+            while (!bound) delay(200) // avoids processing messages while service not bound
 
             when (msg) {
                 is LocationServiceMsg.AddLocationListener -> locationService?.addLocationListener(msg.listener)
