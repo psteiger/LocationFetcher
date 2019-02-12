@@ -236,5 +236,5 @@ class LocationService : Service(), LocationSource {
         val result = kotlin.FloatArray(1)
         android.location.Location.distanceBetween(latitude, longitude, l.latitude, l.longitude, result)
         result[0]
-    } ?: 0f
+    } ?: Float.MAX_VALUE
 }
