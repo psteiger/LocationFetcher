@@ -1,17 +1,17 @@
 # location-service
 
-Building location-based Android apps can be a bit tricky.
+Building location-aware Android apps can be a bit tricky.
 
-This library provides a simple location service that makes your Android app location-aware.
+This library provides a simple location service and base activity to make your Android app location-aware.
 
-The service uses GPS and Network and needs ACCESS_FINE_LOCATION.
+The service uses GPS and network and needs ACCESS_FINE_LOCATION permission.
 
 ## Installation
 
 ### Using Gradle
 
 ```
-implementation 'com.github.psteiger:location-service:0.8'
+implementation 'com.github.psteiger:location-service:1.5'
 ```
 
 ### On Manifest
@@ -43,6 +43,8 @@ Now, the activity that will use the service must deal with:
 There are two options for achieving this: use the base abstract activity provided by the library (recommended), or implement your own logic by hand.
 
 #### Using provided base activity
+
+This is the simplest and recommended solution.
 
 Make your Activity:
 
@@ -165,7 +167,9 @@ override fun onLocationReceived(l: Location) {
 
 Location Service stops asking Android for location updates once a location is gotten. I plan to make it a configurable feature on future releases.
 
-## Using Firebase Auth?
+## Customizations
+
+### Using Firebase Auth?
 
 If you want to make the location service wait for Firebase user authentication before asking the device for location updates, you can:
 
@@ -176,3 +180,23 @@ LocationService.waitForFirebaseAuth = true
 on Activity's `onCreate()` or App's `onCreate()`.
 
 This is useful when, on location changes, you trigger Firebase database changes that demands the user to be authenticated for permission to read/write to the database.
+
+### Other customizations
+
+On Activity's `onCreate()` or App's `onCreate()`, you can apply the following customizations.
+
+```
+LocationService.apply {
+    debug = true                        // prints debug info
+    locationRequest.apply {
+        numUpdates = 4                  // defaults to Int.MAX_VALUE
+        interval = 1000                 // defaults to 0 (milliseconds)
+        smallestDisplacement = 10f      // defaults to 0f (meters)
+    }
+}
+LocationActivity.apply {
+    askForPermissionUntilGiven = false  // insist on asking for permission until given
+    requestPermissionRationale = R.string.need_location_permission      // String resource of rationale for permission
+}
+```
+
