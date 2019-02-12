@@ -103,7 +103,7 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
         }
     }
 
-    sealed class LocationServiceMsg {
+    private sealed class LocationServiceMsg {
         class AddLocationListener(val listener: ILocationListener) : LocationServiceMsg()
         class RemoveLocationListener(val listener: ILocationListener) : LocationServiceMsg()
         object StartRequestingLocationUpdates : LocationServiceMsg()

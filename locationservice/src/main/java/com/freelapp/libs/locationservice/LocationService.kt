@@ -22,6 +22,7 @@ class LocationService : Service(), LocationSource {
     companion object {
         var waitForFirebaseAuth: Boolean = false
         var locationRequest: LocationRequest = LocationRequest.create()
+        var debug: Boolean = false
     }
 
     private var lastUpdate: Long = 0
@@ -224,6 +225,6 @@ class LocationService : Service(), LocationSource {
      * On Debug builds, log automatically.
      */
     private fun logd(msg: String) {
-        if (BuildConfig.DEBUG) Log.d(this::class.java.simpleName, msg)
+        if (debug) Log.d(this::class.java.simpleName, msg)
     }
 }
