@@ -23,6 +23,7 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
         const val HAS_LOCATION_PERMISSION_CODE = 11666
         val LOCATION_PERMISSION = arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
         var askForPermissionUntilGiven: Boolean = false
+        var requestPermissionRationale: Int = R.string.need_location_permission
     }
 
     var locationService: LocationService? = null
@@ -91,7 +92,7 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
                     Snackbar
                         .make(
                             findViewById(android.R.id.content),
-                            getString(R.string.need_location_permission),
+                            getString(requestPermissionRationale),
                             Snackbar.LENGTH_LONG
                         )
                         .show()
