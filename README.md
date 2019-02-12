@@ -37,8 +37,8 @@ There are two options for achieving this: use the base abstract activity provide
 
 Make your Activity:
 
-1. Extend `LocationActivity`
-2. Override `onLocationReceived()`
+1. Extend `LocationActivity()`
+2. Override `onLocationReceived(l: Location)`
 3. (Optional) Override `onLocationServiceConnected()` and `onLocationServiceDisconnected()` to run code after service connection and disconnection. Note that this refers to service connection, not location changes.
 
 ```
