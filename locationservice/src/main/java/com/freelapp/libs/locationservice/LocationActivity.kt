@@ -22,6 +22,7 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
     companion object {
         const val HAS_LOCATION_PERMISSION_CODE = 11666
         val LOCATION_PERMISSION = arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
+        var askForPermissionUntilGiven: Boolean = false
     }
 
     var locationService: LocationService? = null
@@ -91,11 +92,12 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
                         .make(
                             findViewById(android.R.id.content),
                             getString(R.string.need_location_permission),
-                            Snackbar.LENGTH_INDEFINITE
+                            Snackbar.LENGTH_LONG
                         )
                         .show()
 
-                    if (ContextCompat.checkSelfPermission(this, LOCATION_PERMISSION.first()) != PackageManager.PERMISSION_GRANTED) {
+                    if (ContextCompat.checkSelfPermission(this, LOCATION_PERMISSION.first()) != PackageManager.PERMISSION_GRANTED &&
+                            askForPermissionUntilGiven) {
                         ActivityCompat.requestPermissions(this, LOCATION_PERMISSION, HAS_LOCATION_PERMISSION_CODE)
                     }
                 }
