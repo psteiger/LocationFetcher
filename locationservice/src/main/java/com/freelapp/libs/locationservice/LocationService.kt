@@ -26,6 +26,8 @@ class LocationService : Service(), LocationSource {
 
     private var lastUpdate: Long = 0
 
+    private var gotUpdates: Int = 0
+
     private var mapListener: LocationSource.OnLocationChangedListener? = null
 
     private var currentLocation: Location? = null
@@ -38,7 +40,9 @@ class LocationService : Service(), LocationSource {
                     logd("Setting location to $it")
                     lastUpdate = SystemClock.elapsedRealtime()
                     field = value
-                    stopRequestingLocationUpdates()
+
+                    if (locationRequest.numUpdates == ++gotUpdates) stopRequestingLocationUpdates()
+
                     broadcastLocation()
                 } else {
                     logd("Ignoring location update.")
