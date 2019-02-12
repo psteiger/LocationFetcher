@@ -36,11 +36,16 @@ class LocationService : Service(), LocationSource {
             value?.let {
                 val interval = locationRequest.interval
                 val timeElapsed = SystemClock.elapsedRealtime() - lastUpdate
+                val displacement = getDisplacement(it)
+                val smallestDisplacement = locationRequest.smallestDisplacement
+                logd("Got location $it")
                 logd("Location update interval is $interval. Time since last update: $timeElapsed")
-                if (timeElapsed > interval) {
+                logd("Displacement is $displacement, smallest displacement is $smallestDisplacement")
+                if (timeElapsed > interval && getDisplacement(it) > smallestDisplacement) {
                     logd("Setting location to $it")
-                    lastUpdate = SystemClock.elapsedRealtime()
+
                     field = value
+                    lastUpdate = SystemClock.elapsedRealtime()
 
                     if (locationRequest.numUpdates == ++gotUpdates) stopRequestingLocationUpdates()
 
@@ -57,7 +62,6 @@ class LocationService : Service(), LocationSource {
     private val locationListener = object : LocationListener {
         override fun onLocationChanged(p0: Location?) = p0?.let {
             currentLocation = it
-            logd("Location listener got location $it")
         } ?: Unit
         override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) = Unit
         override fun onProviderEnabled(provider: String?) = Unit
@@ -227,4 +231,10 @@ class LocationService : Service(), LocationSource {
     private fun logd(msg: String) {
         if (debug) Log.d(this::class.java.simpleName, msg)
     }
+
+    private fun getDisplacement(l: Location): Float = currentLocation?.run {
+        val result = kotlin.FloatArray(1)
+        android.location.Location.distanceBetween(latitude, longitude, l.latitude, l.longitude, result)
+        result[0]
+    } ?: 0f
 }
