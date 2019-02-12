@@ -106,6 +106,8 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
     sealed class LocationServiceMsg {
         class AddLocationListener(val listener: ILocationListener) : LocationServiceMsg()
         class RemoveLocationListener(val listener: ILocationListener) : LocationServiceMsg()
+        object StartRequestingLocationUpdates : LocationServiceMsg()
+        object StopRequestingLocationUpdates : LocationServiceMsg()
     }
 
     @ObsoleteCoroutinesApi
@@ -116,9 +118,12 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
             when (msg) {
                 is LocationServiceMsg.AddLocationListener -> locationService?.addLocationListener(msg.listener)
                 is LocationServiceMsg.RemoveLocationListener -> locationService?.removeLocationListener(msg.listener)
+                LocationServiceMsg.StartRequestingLocationUpdates -> locationService?.startRequestingLocationUpdates()
+                LocationServiceMsg.StopRequestingLocationUpdates -> locationService?.stopRequestingLocationUpdates()
             }
         }
     }
+
     /* update whoever registers about location changes */
     @ObsoleteCoroutinesApi
     fun addLocationListener(listener: ILocationListener) = GlobalScope.launch {
@@ -130,7 +135,18 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
         locationServiceActor.send(LocationServiceMsg.RemoveLocationListener(listener))
     }
 
-    // override this !
+    @ObsoleteCoroutinesApi
+    fun startRequestingLocationUpdates() = GlobalScope.launch {
+        locationServiceActor.send(LocationServiceMsg.StartRequestingLocationUpdates)
+    }
+
+    @ObsoleteCoroutinesApi
+    fun stopRequestingLocationUpdates() = GlobalScope.launch {
+        locationServiceActor.send(LocationServiceMsg.StopRequestingLocationUpdates)
+    }
+
+    // override this if you want to run code after service is connected/disconnected.
+    // note this is not about getting a location or not.
     protected open fun onLocationServiceConnected() = Unit
     protected open fun onLocationServiceDisconnected() = Unit
 }

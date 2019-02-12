@@ -8,6 +8,7 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Binder
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.Log
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -20,17 +21,28 @@ class LocationService : Service(), LocationSource {
 
     companion object {
         var waitForFirebaseAuth: Boolean = false
+        var locationRequest: LocationRequest = LocationRequest.create()
     }
+
+    private var lastUpdate: Long = 0
 
     private var mapListener: LocationSource.OnLocationChangedListener? = null
 
     private var currentLocation: Location? = null
         set(value) {
             value?.let {
-                logd("Setting location to $it")
-                field = value
-                stopRequestingLocationUpdates()
-                broadcastLocation()
+                val interval = locationRequest.interval
+                val timeElapsed = SystemClock.elapsedRealtime() - lastUpdate
+                logd("Location update interval is $interval. Time since last update: $timeElapsed")
+                if (timeElapsed > interval) {
+                    logd("Setting location to $it")
+                    lastUpdate = SystemClock.elapsedRealtime()
+                    field = value
+                    stopRequestingLocationUpdates()
+                    broadcastLocation()
+                } else {
+                    logd("Ignoring location update.")
+                }
             }
         }
     private var requestingLocationUpdates = false
@@ -48,7 +60,7 @@ class LocationService : Service(), LocationSource {
     }
     private val gpsLocationManagerListener = locationListener
     private val networkLocationManagerListener = locationListener
-    private val fusedLocationClientRequest = LocationRequest.create()
+    private val fusedLocationClientRequest = locationRequest
     private val fusedLocationClientCallback = object : LocationCallback() {
         override fun onLocationResult(locationResult: LocationResult) {
             super.onLocationResult(locationResult)
@@ -86,7 +98,6 @@ class LocationService : Service(), LocationSource {
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int) = Service.START_NOT_STICKY
 
     override fun onBind(intent: Intent) = binder
-
 
     /**
      * Updates whoever registers about location changes.
@@ -141,23 +152,29 @@ class LocationService : Service(), LocationSource {
         }
     }
 
-    private fun stopRequestingLocationUpdates() {
-        logd("Stop requesting location updates")
-        requestingLocationUpdates = false
-        try {
-            locationManager.removeUpdates(gpsLocationManagerListener)
-        } catch (_: Exception) {}
+    fun stopRequestingLocationUpdates() {
+        if (requestingLocationUpdates) {
+            logd("Stop requesting location updates")
 
-        try {
-            locationManager.removeUpdates(networkLocationManagerListener)
-        } catch (_: Exception) {}
+            requestingLocationUpdates = false
+            try {
+                locationManager.removeUpdates(gpsLocationManagerListener)
+            } catch (_: Throwable) {
+            }
 
-        try {
-            fusedLocationClient.removeLocationUpdates(fusedLocationClientCallback)
-        } catch (_: Exception) {}
+            try {
+                locationManager.removeUpdates(networkLocationManagerListener)
+            } catch (_: Throwable) {
+            }
+
+            try {
+                fusedLocationClient.removeLocationUpdates(fusedLocationClientCallback)
+            } catch (_: Throwable) {
+            }
+        }
     }
 
-    private fun startRequestingLocationUpdates() {
+    fun startRequestingLocationUpdates() {
         if (!requestingLocationUpdates) {
             logd("Start requesting location updates")
 
@@ -165,12 +182,22 @@ class LocationService : Service(), LocationSource {
 
             // can happen: SecurityException (permission) or IllegalArgumentException: 'provider doesn't exist: gps'
             try {
-                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0f, gpsLocationManagerListener)
+                locationManager.requestLocationUpdates(
+                    LocationManager.GPS_PROVIDER,
+                    locationRequest.interval,
+                    locationRequest.smallestDisplacement,
+                    gpsLocationManagerListener
+                )
             } catch (_: SecurityException) {
             } catch (_: IllegalArgumentException) {} // provider doesn't exist: gps
 
             try {
-                locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0f, networkLocationManagerListener)
+                locationManager.requestLocationUpdates(
+                    LocationManager.NETWORK_PROVIDER,
+                    locationRequest.interval,
+                    locationRequest.smallestDisplacement,
+                    networkLocationManagerListener
+                )
             } catch (_: SecurityException) {
             } catch (_: IllegalArgumentException) {} // provider doesn't exist: network
 
