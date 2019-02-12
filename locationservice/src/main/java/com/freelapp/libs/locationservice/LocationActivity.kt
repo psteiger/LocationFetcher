@@ -103,10 +103,6 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
         }
     }
 
-    // override this !
-    protected open fun onLocationServiceConnected() = Unit
-    protected open fun onLocationServiceDisconnected() = Unit
-
     sealed class LocationServiceMsg {
         class AddLocationListener(val listener: ILocationListener) : LocationServiceMsg()
         class RemoveLocationListener(val listener: ILocationListener) : LocationServiceMsg()
@@ -133,4 +129,8 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
     fun removeLocationListener(listener: ILocationListener) = GlobalScope.launch {
         locationServiceActor.send(LocationServiceMsg.RemoveLocationListener(listener))
     }
+
+    // override this !
+    protected open fun onLocationServiceConnected() = Unit
+    protected open fun onLocationServiceDisconnected() = Unit
 }
