@@ -11,7 +11,7 @@ The service uses GPS and Network and needs ACCESS_FINE_LOCATION.
 ### Using Gradle
 
 ```
-implementation 'com.github.psteiger:location-service:0.7'
+implementation 'com.github.psteiger:location-service:0.8'
 ```
 
 ### On Manifest
@@ -35,21 +35,18 @@ There are two options for achieving this: use the base abstract activity provide
 
 #### Using provided base activity
 
-Make your Activity
+Make your Activity:
 
-1. Extend `LocationActivity` and implement `ILocationListener`
-2. Override `onLocationServiceConnected()` and `onLocationReceived()`
+1. Extend `LocationActivity`
+2. Override `onLocationReceived()`
+3. (Optional) Override `onLocationServiceConnected()` and `onLocationServiceDisconnected()` to run code after service connection and disconnection. Note that this refers to service connection, not location changes.
 
 ```
 import com.freelapp.libs.locationservice.LocationActivity
 
-class MyActivity : LocationActivity(), ILocationListener {
+class MyActivity : LocationActivity() {
 
     private var currentLocation: Location? = null
-
-    override fun onLocationServiceConnected() {
-        addLocationListener(this)
-    }
     
     override fun onLocationReceived(l: Location) {
         currentLocation = l
@@ -59,7 +56,7 @@ class MyActivity : LocationActivity(), ILocationListener {
 
 #### Creating your own logic to deal with the service: an example
 
-You can setup the activity or fragment you want to be location-aware as follows.
+If you need something more personalized, you can setup the activity or fragment you want to be location-aware as the follow example.
 
 First, we need to deal with service binding.
 
