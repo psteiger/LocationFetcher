@@ -111,18 +111,22 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
         class RemoveLocationListener(val listener: ILocationListener) : LocationServiceMsg()
         object StartRequestingLocationUpdates : LocationServiceMsg()
         object StopRequestingLocationUpdates : LocationServiceMsg()
+        object BroadcastLocation : LocationServiceMsg()
     }
 
     @ObsoleteCoroutinesApi
     private val locationServiceActor = GlobalScope.actor<LocationServiceMsg>(Dispatchers.Main) {
         for (msg in channel) {
-            while (!bound) delay(200) // avoids processing messages while service not bound
+            // avoids processing messages while service not bound, but instead of ignoring command, wait for binding.
+            // that is why actors are used here.
+            while (!bound) delay(200)
 
             when (msg) {
                 is LocationServiceMsg.AddLocationListener -> locationService?.addLocationListener(msg.listener)
                 is LocationServiceMsg.RemoveLocationListener -> locationService?.removeLocationListener(msg.listener)
                 LocationServiceMsg.StartRequestingLocationUpdates -> locationService?.startRequestingLocationUpdates()
                 LocationServiceMsg.StopRequestingLocationUpdates -> locationService?.stopRequestingLocationUpdates()
+                LocationServiceMsg.BroadcastLocation -> locationService?.broadcastLocation()
             }
         }
     }
@@ -146,6 +150,11 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
     @ObsoleteCoroutinesApi
     fun stopRequestingLocationUpdates() = GlobalScope.launch {
         locationServiceActor.send(LocationServiceMsg.StopRequestingLocationUpdates)
+    }
+
+    @ObsoleteCoroutinesApi
+    fun broadcastLocation() = GlobalScope.launch {
+        locationServiceActor.send(LocationServiceMsg.BroadcastLocation)
     }
 
     // override this if you want to run code after service is connected/disconnected.
