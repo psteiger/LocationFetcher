@@ -41,7 +41,7 @@ class LocationService : Service(), LocationSource {
                 logd("Got location $it")
                 logd("Location update interval is $interval. Time since last update: $timeElapsed")
                 logd("Displacement is $displacement, smallest displacement is $smallestDisplacement")
-                if (timeElapsed > interval && getDisplacement(it) > smallestDisplacement) {
+                if (currentLocation == null || timeElapsed > interval && getDisplacement(it) > smallestDisplacement) {
                     logd("Setting location to $it")
 
                     field = value
