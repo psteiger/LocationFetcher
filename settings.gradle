@@ -1,1 +1,1 @@
-include ':app', ':locationservice'
+include ':locationservice'

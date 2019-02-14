@@ -148,7 +148,7 @@ class LocationService : Service(), LocationSource {
         }
     }
 
-    private fun broadcastLocation() = currentLocation?.let { location ->
+    fun broadcastLocation() = currentLocation?.let { location ->
         logd("Broadcasting location $location to listeners")
         locationChangedListeners.forEach {
             logd("Broadcasting location $location to listener $it")
