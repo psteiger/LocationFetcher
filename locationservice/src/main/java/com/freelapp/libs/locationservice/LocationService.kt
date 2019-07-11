@@ -23,6 +23,10 @@ class LocationService : Service(), LocationSource {
         var waitForFirebaseAuth: Boolean = false
         var locationRequest: LocationRequest = LocationRequest.create()
         var debug: Boolean = false
+
+        fun logd(msg: String) {
+            if (debug) Log.d(this::class.java.simpleName, msg)
+        }
     }
 
     private var lastUpdate: Long = 0
@@ -225,16 +229,9 @@ class LocationService : Service(), LocationSource {
             get() = this@LocationService
     }
 
-    /**
-     * On Debug builds, log automatically.
-     */
-    private fun logd(msg: String) {
-        if (debug) Log.d(this::class.java.simpleName, msg)
-    }
-
     private fun getDisplacement(l: Location): Float = currentLocation?.run {
-        val result = kotlin.FloatArray(1)
-        android.location.Location.distanceBetween(latitude, longitude, l.latitude, l.longitude, result)
+        val result = FloatArray(1)
+        Location.distanceBetween(latitude, longitude, l.latitude, l.longitude, result)
         result[0]
     } ?: Float.MAX_VALUE
 }
