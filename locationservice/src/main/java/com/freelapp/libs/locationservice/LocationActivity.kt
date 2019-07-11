@@ -1,18 +1,19 @@
 package com.freelapp.libs.locationservice
 
-import android.content.ComponentName
-import android.content.Context
-import android.content.Intent
-import android.content.ServiceConnection
+import android.content.*
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.IBinder
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.location.*
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.actor
+import com.google.android.gms.common.api.ResolvableApiException
+import java.lang.ClassCastException
 
 /**
  * Service connection vars and binding code common to all classes is in this abstract class.
@@ -21,6 +22,7 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
 
     companion object {
         const val HAS_LOCATION_PERMISSION_CODE = 11666
+        const val REQUEST_CHECK_SETTINGS = 11667
         val LOCATION_PERMISSION = arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
         var askForPermissionUntilGiven: Boolean = false
         var requestPermissionRationale: Int = R.string.need_location_permission
@@ -47,10 +49,54 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
         }
     }
 
+    private fun checkSettings() {
+        val builder = LocationSettingsRequest.Builder().addLocationRequest(LocationRequest.create())
+        val task = LocationServices.getSettingsClient(this).checkLocationSettings(builder.build())
+
+        task.addOnCompleteListener {
+            try {
+                task.getResult(ApiException::class.java)
+                // All location settings are satisfied. The client can initialize location
+            } catch (e: ApiException) {
+                when (e.statusCode) {
+                    LocationSettingsStatusCodes.RESOLUTION_REQUIRED -> {
+                        try {
+                            // Cast to a resolvable exception.
+                            val resolvable = e as ResolvableApiException
+                            // Show the dialog by calling startResolutionForResult(),
+                            // and check the result in onActivityResult().
+                            resolvable.startResolutionForResult(
+                                this,
+                                REQUEST_CHECK_SETTINGS
+                            )
+                        } catch (_: IntentSender.SendIntentException) {
+                            // Ignore the error.
+                        } catch (_: ClassCastException) {
+                            // Ignore, should be an impossible error.
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        askForPermissionAndBindIfNotAlready()
+        checkSettings()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        when (requestCode) {
+            REQUEST_CHECK_SETTINGS -> when (resultCode) {
+                RESULT_OK -> askForPermissionAndBindIfNotAlready()
+                RESULT_CANCELED -> {
+                    showSnackbar(R.string.need_location_settings)
+                    checkSettings()
+                }
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -89,21 +135,25 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
                 if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
                     bind()
                 } else if (ActivityCompat.shouldShowRequestPermissionRationale(this, LOCATION_PERMISSION.first())) {
-                    Snackbar
-                        .make(
-                            findViewById(android.R.id.content),
-                            getString(requestPermissionRationale),
-                            Snackbar.LENGTH_LONG
-                        )
-                        .show()
+                    showSnackbar(requestPermissionRationale)
 
                     if (ContextCompat.checkSelfPermission(this, LOCATION_PERMISSION.first()) != PackageManager.PERMISSION_GRANTED &&
-                            askForPermissionUntilGiven) {
+                        askForPermissionUntilGiven) {
                         ActivityCompat.requestPermissions(this, LOCATION_PERMISSION, HAS_LOCATION_PERMISSION_CODE)
                     }
                 }
             }
         }
+    }
+
+    private fun showSnackbar(res: Int) {
+        Snackbar
+            .make(
+                findViewById(android.R.id.content),
+                getString(res),
+                Snackbar.LENGTH_INDEFINITE
+            )
+            .show()
     }
 
     private sealed class LocationServiceMsg {
@@ -115,7 +165,7 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
     }
 
     @ObsoleteCoroutinesApi
-    private val locationServiceActor = GlobalScope.actor<LocationServiceMsg>(Dispatchers.Main) {
+    private val locationServiceActor = GlobalScope.actor<LocationServiceMsg>(Dispatchers.Default) {
         for (msg in channel) {
             // avoids processing messages while service not bound, but instead of ignoring command, wait for binding.
             // that is why actors are used here.
@@ -157,8 +207,7 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
         locationServiceActor.send(LocationServiceMsg.BroadcastLocation)
     }
 
-    // override this if you want to run code after service is connected/disconnected.
-    // note this is not about getting a location or not.
+    // override this !
     protected open fun onLocationServiceConnected() = Unit
     protected open fun onLocationServiceDisconnected() = Unit
 }
