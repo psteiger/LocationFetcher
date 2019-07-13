@@ -1,7 +1,7 @@
 package com.freelapp.libs.locationservice
 
 import android.content.*
-import android.content.pm.PackageManager
+import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.os.Bundle
 import android.os.IBinder
 import androidx.appcompat.app.AppCompatActivity
@@ -69,6 +69,98 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
         }
     }
 
+    @ObsoleteCoroutinesApi
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        locationServiceActor = lifecycleScope.actor(Dispatchers.Main) {
+            for (msg in channel) {
+                // avoids processing messages while service not bound, but instead of ignoring command, wait for binding.
+                // that is why actors are used here.
+                while (!bound) delay(200)
+
+                when (msg) {
+                    is LocationServiceMsg.AddLocationListener -> locationService?.addLocationListener(msg.listener)
+                    is LocationServiceMsg.RemoveLocationListener -> locationService?.removeLocationListener(msg.listener)
+                    LocationServiceMsg.StartRequestingLocationUpdates -> locationService?.startRequestingLocationUpdates()
+                    LocationServiceMsg.StopRequestingLocationUpdates -> locationService?.stopRequestingLocationUpdates()
+                    LocationServiceMsg.BroadcastLocation -> locationService?.broadcastLocation()
+                }
+            }
+        }
+        checkSettings()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        when (requestCode) {
+            REQUEST_CHECK_SETTINGS -> when (resultCode) {
+                RESULT_OK -> {
+                    logd("Location is enabled in Settings")
+                    onLocationSettingsOn()
+                    askForPermissionIfNeededAndBindIfNotAlready()
+                }
+                RESULT_CANCELED -> {
+                    logd("Location is NOT enabled in Settings")
+                    showSnackbar(R.string.need_location_settings)
+                    checkSettings()
+                }
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+
+        logd("onDestroy")
+
+        if (bound) {
+            logd("onDestroy: Unbinding service...")
+
+            locationService?.removeLocationListener(this)
+            unbindService(locationServiceConn)
+            bound = false
+        }
+    }
+
+
+    override fun onRequestPermissionsResult(requestCode: Int,
+                                            permissions: Array<String>,
+                                            grantResults: IntArray) {
+        when (requestCode) {
+            HAS_LOCATION_PERMISSION_CODE -> {
+                // If request is cancelled, the result arrays are empty.
+                if (grantResults.firstOrNull() == PERMISSION_GRANTED) {
+                    permissionGrantedCallCallbackAndBind()
+                } else if (shouldShowRationale()) {
+                    logd("Permission failed")
+                    showSnackbar(requestPermissionRationale)
+
+                    if (!hasPermission() && askForPermissionUntilGiven)
+                        askForPermission()
+                }
+            }
+        }
+    }
+
+    /**
+     * Private methods
+     */
+    private fun showSnackbar(res: Int) {
+        Snackbar
+            .make(
+                findViewById(android.R.id.content),
+                getString(res),
+                Snackbar.LENGTH_LONG
+            )
+            .show()
+    }
+
+    private fun bind() = bindService(
+        Intent(this, LocationService::class.java),
+        locationServiceConn,
+        Context.BIND_AUTO_CREATE
+    ).also { logd("LocationService - bindService() called.") }
+
     private fun checkSettings() {
         logd("Checking settings")
 
@@ -81,7 +173,7 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
                 // All location settings are satisfied. The client can initialize location
                 logd("Checking settings - Satisfied.")
                 onLocationSettingsOn()
-                askForPermissionAndBindIfNotAlready()
+                askForPermissionIfNeededAndBindIfNotAlready()
             } catch (e: ApiException) {
                 logd("Checking settings - Not satisfied. Status code: ${e.statusCode}: ${e.localizedMessage}.")
                 when (e.statusCode) {
@@ -114,111 +206,35 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
         }
     }
 
-    @ObsoleteCoroutinesApi
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        locationServiceActor = lifecycleScope.actor(Dispatchers.Main) {
-            for (msg in channel) {
-                // avoids processing messages while service not bound, but instead of ignoring command, wait for binding.
-                // that is why actors are used here.
-                while (!bound) delay(200)
-
-                when (msg) {
-                    is LocationServiceMsg.AddLocationListener -> locationService?.addLocationListener(msg.listener)
-                    is LocationServiceMsg.RemoveLocationListener -> locationService?.removeLocationListener(msg.listener)
-                    LocationServiceMsg.StartRequestingLocationUpdates -> locationService?.startRequestingLocationUpdates()
-                    LocationServiceMsg.StopRequestingLocationUpdates -> locationService?.stopRequestingLocationUpdates()
-                    LocationServiceMsg.BroadcastLocation -> locationService?.broadcastLocation()
-                }
-            }
-        }
-        checkSettings()
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        when (requestCode) {
-            REQUEST_CHECK_SETTINGS -> when (resultCode) {
-                RESULT_OK -> {
-                    logd("Got permission")
-                    onLocationSettingsOn()
-                    askForPermissionAndBindIfNotAlready()
-                }
-                RESULT_CANCELED -> {
-                    logd("Did not get permission")
-                    showSnackbar(R.string.need_location_settings)
-                    checkSettings()
-                }
-            }
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-
-        logd("onDestroy")
-
-        if (bound) {
-            logd("onDestroy: Unbinding service...")
-
-            locationService?.removeLocationListener(this)
-            unbindService(locationServiceConn)
-            bound = false
-        }
-    }
-
-    private fun bind() = bindService(
-        Intent(this, LocationService::class.java),
-        locationServiceConn,
-        Context.BIND_AUTO_CREATE
-    ).also { logd("LocationService - bindService() called.") }
-
-    private fun askForPermissionAndBindIfNotAlready() {
+    private fun askForPermissionIfNeededAndBindIfNotAlready() {
         if (!bound) {
-            if (ContextCompat.checkSelfPermission(this,
-                    LOCATION_PERMISSION.first()) != PackageManager.PERMISSION_GRANTED) {
-                logd("asking for permission")
-                ActivityCompat.requestPermissions(this, LOCATION_PERMISSION, HAS_LOCATION_PERMISSION_CODE)
-            } else {
-                logd("Permission granted. Binding service.")
-                onLocationPermissionGranted()
-                bind()
-            }
+            if (!hasPermission())
+                askForPermission()
+            else
+                permissionGrantedCallCallbackAndBind()
         }
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int,
-                                            permissions: Array<String>,
-                                            grantResults: IntArray) {
-        when (requestCode) {
-            HAS_LOCATION_PERMISSION_CODE -> {
-                // If request is cancelled, the result arrays are empty.
-                if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
-                    logd("Permission granted. Binding service.")
-                    bind()
-                } else if (ActivityCompat.shouldShowRequestPermissionRationale(this, LOCATION_PERMISSION.first())) {
-                    logd("Permission failed")
-                    showSnackbar(requestPermissionRationale)
-
-                    if (ContextCompat.checkSelfPermission(this, LOCATION_PERMISSION.first())
-                        != PackageManager.PERMISSION_GRANTED && askForPermissionUntilGiven) {
-                        ActivityCompat.requestPermissions(this, LOCATION_PERMISSION, HAS_LOCATION_PERMISSION_CODE)
-                    }
-                }
-            }
-        }
+    private fun permissionGrantedCallCallbackAndBind() {
+        logd("Permission granted. Binding service.")
+        onLocationPermissionGranted()
+        bind()
     }
 
-    private fun showSnackbar(res: Int) {
-        Snackbar
-            .make(
-                findViewById(android.R.id.content),
-                getString(res),
-                Snackbar.LENGTH_LONG
-            )
-            .show()
+    private fun askForPermission() {
+        logd("asking for permission")
+        ActivityCompat.requestPermissions(this, LOCATION_PERMISSION, HAS_LOCATION_PERMISSION_CODE)
     }
 
+    private fun hasPermission() =
+        ContextCompat.checkSelfPermission(this, LOCATION_PERMISSION.first()) == PERMISSION_GRANTED
+
+    private fun shouldShowRationale() =
+        ActivityCompat.shouldShowRequestPermissionRationale(this, LOCATION_PERMISSION.first())
+
+    /**
+     * Public methods
+     */
     /* update whoever registers about location changes */
     @ObsoleteCoroutinesApi
     fun addLocationListener(listener: ILocationListener) = lifecycleScope.launch {
