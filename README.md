@@ -11,7 +11,7 @@ The service uses GPS and network and needs ACCESS_FINE_LOCATION permission.
 ### Using Gradle
 
 ```
-implementation 'com.github.psteiger:location-service:2.2'
+implementation 'com.github.psteiger:location-service:2.3'
 ```
 
 ### On Manifest
