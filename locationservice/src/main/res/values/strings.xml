@@ -1,5 +1,4 @@
 <resources>
-    <string name="app_name">Location Service</string>
     <string name="need_location_permission">We need your permission to continue</string>
     <string name="need_location_settings">We need you to activate \"Use location\" on Android Settings to continue
     </string>

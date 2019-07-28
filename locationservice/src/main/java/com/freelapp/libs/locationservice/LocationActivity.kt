@@ -54,7 +54,7 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
             }
             bound = true
 
-            logd("LocationService bound.")
+            logd("LocationActivity", "LocationService bound.")
 
             onLocationServiceConnected() // optionally overridden by children activities
         }
@@ -63,7 +63,7 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
             locationService = null
             bound = false
 
-            logd("LocationService disconnected (unbounded).")
+            logd("LocationActivity", "LocationService disconnected (unbounded).")
 
             onLocationServiceDisconnected()
         }
