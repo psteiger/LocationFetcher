@@ -24,8 +24,10 @@ class LocationService : Service(), LocationSource {
         var locationRequest: LocationRequest = LocationRequest.create()
         var debug: Boolean = false
 
-        fun logd(msg: String) {
-            if (debug) Log.d(this::class.java.simpleName, msg)
+        fun logd(msg: String) = logd(this::class.java.simpleName, msg)
+
+        fun logd(tag: String, msg: String) {
+            if (debug) Log.d(tag, msg)
         }
     }
 

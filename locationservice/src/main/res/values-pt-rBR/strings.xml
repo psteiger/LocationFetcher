@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Location Service</string>
     <string name="need_location_permission">Precisamos de sua permissão para continuar</string>
     <string name="need_location_settings">Precisamos que habilite o serviço de localização nas configurações do Android
         para continuar
