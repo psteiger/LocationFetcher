@@ -87,7 +87,6 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
                 }
             }
         }
-        checkSettings()
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -108,20 +107,24 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
+    override fun onResume() {
+        super.onResume()
+        checkSettings()
+    }
 
-        logd("onDestroy")
+    override fun onPause() {
+        super.onPause()
+
+        logd("onPause")
 
         if (bound) {
-            logd("onDestroy: Unbinding service...")
+            logd("onPause: Unbinding service...")
 
             locationService?.removeLocationListener(this)
             unbindService(locationServiceConn)
             bound = false
         }
     }
-
 
     override fun onRequestPermissionsResult(requestCode: Int,
                                             permissions: Array<String>,
