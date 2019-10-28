@@ -2,6 +2,6 @@ package com.freelapp.libs.locationservice
 
 import android.location.Location
 
-interface ILocationListener {
+interface LocationChangeListener {
     fun onLocationReceived(l: Location)
 }

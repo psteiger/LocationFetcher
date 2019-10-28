@@ -145,7 +145,7 @@ override fun onRequestPermissionsResult(requestCode: Int,
 Make sure it implements `ILocationListener`
 
 ```
-import com.freelapp.libs.locationservice.ILocationListener
+import com.freelapp.libs.locationservice.LocationChangeListener
 ```
 
 Make it listen for a new location:
