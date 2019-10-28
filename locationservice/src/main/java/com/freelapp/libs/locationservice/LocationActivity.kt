@@ -51,22 +51,22 @@ abstract class LocationActivity : AppCompatActivity() {
 
     private val locationServiceConn: ServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
+            logd( "LocationService bound. Notifying listeners: $locationServiceConnectionListeners")
+
             locationService = (service as LocationService.LocalBinder).service.apply {
                 if (this@LocationActivity is LocationChangeListener)
                     addLocationListener(this@LocationActivity)
             }
             bound = true
 
-            logd( "LocationService bound.")
-
             locationServiceConnectionListeners.forEach { it.onLocationServiceConnected() }
         }
 
         override fun onServiceDisconnected(arg0: ComponentName) {
+            logd("LocationService disconnected. Notifying listeners: $locationServiceConnectionListeners")
+
             locationService = null
             bound = false
-
-            logd("LocationService disconnected.")
 
             locationServiceConnectionListeners.forEach { it.onLocationServiceDisconnected() }
         }
@@ -74,11 +74,14 @@ abstract class LocationActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        when (this) {
-            is LocationPermissionListener -> addLocationPermissionListener(this)
-            is LocationServiceConnectionListener -> addLocationServiceConnectionListener(this)
-            is LocationSettingsListener -> addLocationSettingsListener(this)
-        }
+
+        if (this is LocationPermissionListener)
+            addLocationPermissionListener(this)
+        if (this is LocationServiceConnectionListener)
+            addLocationServiceConnectionListener(this)
+        if (this is LocationSettingsListener)
+            addLocationSettingsListener(this)
+
         locationServiceActor = lifecycleScope.actor(Dispatchers.Main) {
             for (msg in channel) {
                 // avoids processing messages while service not bound, but instead of ignoring command, wait for binding.
@@ -98,12 +101,15 @@ abstract class LocationActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        when (this) {
-            is LocationPermissionListener -> removeLocationPermissionListener(this)
-            is LocationServiceConnectionListener -> removeLocationServiceConnectionListener(this)
-            is LocationSettingsListener -> removeLocationSettingsListener(this)
-        }
+
+        if (this is LocationPermissionListener)
+            removeLocationPermissionListener(this)
+        if (this is LocationServiceConnectionListener)
+            removeLocationServiceConnectionListener(this)
+        if (this is LocationSettingsListener)
+            removeLocationSettingsListener(this)
     }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         when (requestCode) {
