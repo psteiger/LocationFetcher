@@ -101,7 +101,7 @@ LocationService.apply {
 }
 LocationActivity.apply {
     askForPermissionUntilGiven = false       // insist on asking for permission until given
-    askForEnabledSettingsUntilGiven = false  // insist on asking for permission until given
+    askForEnabledSettingsUntilGiven = false  // insist on asking until location setting is enabled
     requestPermissionRationale = R.string.need_location_permission      // String resource of rationale for permission
 }
 ```
