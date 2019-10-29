@@ -125,13 +125,11 @@ abstract class LocationActivity : AppCompatActivity() {
         when (requestCode) {
             REQUEST_CHECK_SETTINGS -> when (resultCode) {
                 RESULT_OK -> {
-                    logd("Location is enabled in Settings")
-                    locationSettingsListeners.forEach { it.onLocationSettingsOn() }
-                    askForPermissionIfNeededAndBindIfNotAlready()
+                    notifyListenersSettingsOn()
+                    askForPermissionIfNeeded()
                 }
                 RESULT_CANCELED -> {
-                    logd("Location is NOT enabled in Settings")
-                    locationSettingsListeners.forEach { it.onLocationSettingsOff() }
+                    notifyListenersSettingsOff()
                     if (askForEnabledSettingsUntilGiven) {
                         showSnackbar(R.string.need_location_settings)
                         checkSettings()
@@ -172,7 +170,7 @@ abstract class LocationActivity : AppCompatActivity() {
             HAS_LOCATION_PERMISSION_CODE -> {
                 // If request is cancelled, the result arrays are empty.
                 if (grantResults.firstOrNull() == PERMISSION_GRANTED) {
-                    permissionGrantedCallCallbackAndBind()
+                    notifyListenersPermissionGranted()
                 } else if (shouldShowRationale()) {
                     logd("Permission failed")
                     showSnackbar(requestPermissionRationale)
@@ -214,14 +212,14 @@ abstract class LocationActivity : AppCompatActivity() {
                 task.getResult(ApiException::class.java)
                 // All location settings are satisfied. The client can initialize location
                 logd("Checking settings - Satisfied.")
-                locationSettingsListeners.forEach { it.onLocationSettingsOn() }
-                askForPermissionIfNeededAndBindIfNotAlready()
+                notifyListenersSettingsOn()
+                askForPermissionIfNeeded()
             } catch (e: ApiException) {
                 logd("Checking settings - Not satisfied. Status code: ${e.statusCode}: ${e.localizedMessage}.")
                 when (e.statusCode) {
                     LocationSettingsStatusCodes.RESOLUTION_REQUIRED -> {
                         logd("Checking settings - Resolution required")
-                        locationSettingsListeners.forEach { it.onLocationSettingsOff() }
+                        notifyListenersSettingsOff()
 
                         try {
                             // Cast to a resolvable exception.
@@ -249,22 +247,30 @@ abstract class LocationActivity : AppCompatActivity() {
         }
     }
 
-    private fun askForPermissionIfNeededAndBindIfNotAlready() {
-        if (!bound) {
-            if (!hasPermission())
-                askForPermission()
-            else
-                permissionGrantedCallCallbackAndBind()
-        }
+    private fun askForPermissionIfNeeded() {
+        if (!hasPermission())
+            askForPermission()
+        else
+            notifyListenersPermissionGranted()
     }
 
-    private fun permissionGrantedCallCallbackAndBind() {
-        logd("Permission granted. Notifying listeners $locationPermissionListeners.")
+    private fun notifyListenersPermissionGranted() {
+        logd("Permission granted - Notifying listeners $locationPermissionListeners.")
         locationPermissionListeners.forEach { it.onLocationPermissionGranted() }
     }
 
+    private fun notifyListenersSettingsOn() {
+        logd("Location is enabled in Settings - Notifying listeners $locationSettingsListeners")
+        locationSettingsListeners.forEach { it.onLocationSettingsOn() }
+    }
+
+    private fun notifyListenersSettingsOff() {
+        logd("Location is disabled in Settings - Notifying listeners $locationSettingsListeners")
+        locationSettingsListeners.forEach { it.onLocationSettingsOn() }
+    }
+
     private fun askForPermission() {
-        logd("asking for permission")
+        logd("Asking for permission")
         ActivityCompat.requestPermissions(this, LOCATION_PERMISSION, HAS_LOCATION_PERMISSION_CODE)
     }
 

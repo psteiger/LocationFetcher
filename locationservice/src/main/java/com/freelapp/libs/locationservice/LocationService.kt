@@ -167,7 +167,7 @@ class LocationService : Service(),
     }
 
     fun broadcastLocation() = currentLocation?.let { location ->
-        logd("Broadcasting location $location to listeners")
+        logd("Broadcasting location $location to listeners $locationChangedListeners")
         locationChangedListeners.forEach {
             logd("Broadcasting location $location to listener $it")
             it.onLocationReceived(location)
@@ -183,6 +183,7 @@ class LocationService : Service(),
         logd("Stop requesting location updates")
 
         if (requestingLocationUpdatesFromGps) {
+            logd("Stop requesting location updates from GPS")
             try {
                 locationManager.removeUpdates(gpsLocationManagerListener)
                 requestingLocationUpdatesFromGps = false
@@ -192,6 +193,7 @@ class LocationService : Service(),
         }
 
         if (requestingLocationUpdatesFromNetwork) {
+            logd("Stop requesting location updates from cellular network")
             try {
                 locationManager.removeUpdates(networkLocationManagerListener)
                 requestingLocationUpdatesFromNetwork = false
@@ -201,6 +203,7 @@ class LocationService : Service(),
         }
 
         if (requestingLocationUpdatesFromFusedLocationClient) {
+            logd("Stop requesting location updates from fused location client")
             try {
                 fusedLocationClient.removeLocationUpdates(fusedLocationClientCallback)
                 requestingLocationUpdatesFromFusedLocationClient = false
@@ -231,7 +234,7 @@ class LocationService : Service(),
         }
 
         if (!requestingLocationUpdatesFromNetwork) {
-            logd("Start requesting location updates from celullar network")
+            logd("Start requesting location updates from cellular network")
             try {
                 locationManager.requestLocationUpdates(
                     LocationManager.NETWORK_PROVIDER,
