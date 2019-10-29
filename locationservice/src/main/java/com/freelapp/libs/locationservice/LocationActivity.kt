@@ -9,6 +9,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import com.freelapp.libs.locationservice.LocationService.Companion.locationRequest
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.location.*
 import com.google.android.material.snackbar.Snackbar
@@ -28,6 +29,7 @@ abstract class LocationActivity : AppCompatActivity() {
         const val REQUEST_CHECK_SETTINGS = 11667
         val LOCATION_PERMISSION = arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
         var askForPermissionUntilGiven: Boolean = false
+        var askForEnabledSettingsUntilGiven: Boolean = false
         var requestPermissionRationale: Int = R.string.need_location_permission
     }
 
@@ -45,6 +47,7 @@ abstract class LocationActivity : AppCompatActivity() {
         private set
 
     private var bound: Boolean = false
+
     private val locationPermissionListeners = mutableListOf<LocationPermissionListener>()
     private val locationServiceConnectionListeners = mutableListOf<LocationServiceConnectionListener>()
     private val locationSettingsListeners = mutableListOf<LocationSettingsListener>()
@@ -54,9 +57,14 @@ abstract class LocationActivity : AppCompatActivity() {
             logd( "LocationService bound. Notifying listeners: $locationServiceConnectionListeners")
 
             locationService = (service as LocationService.LocalBinder).service.apply {
-                if (this@LocationActivity is LocationChangeListener)
+                if (this@LocationActivity is LocationChangeListener) {
                     addLocationListener(this@LocationActivity)
+                }
+            }.also {
+                addLocationPermissionListener(it)
+                addLocationSettingsListener(it)
             }
+
             bound = true
 
             locationServiceConnectionListeners.forEach { it.onLocationServiceConnected() }
@@ -97,6 +105,8 @@ abstract class LocationActivity : AppCompatActivity() {
                 }
             }
         }
+
+        checkSettings()
     }
 
     override fun onDestroy() {
@@ -122,27 +132,34 @@ abstract class LocationActivity : AppCompatActivity() {
                 RESULT_CANCELED -> {
                     logd("Location is NOT enabled in Settings")
                     locationSettingsListeners.forEach { it.onLocationSettingsOff() }
-                    showSnackbar(R.string.need_location_settings)
-                    checkSettings()
+                    if (askForEnabledSettingsUntilGiven) {
+                        showSnackbar(R.string.need_location_settings)
+                        checkSettings()
+                    }
                 }
             }
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        checkSettings()
+    override fun onStart() {
+        logd("onStart")
+        super.onStart()
+        bind()
     }
 
-    override fun onPause() {
-        super.onPause()
-
-        logd("onPause")
-
+    override fun onStop() {
+        logd("onStop")
+        super.onStop()
         if (bound) {
-            logd("onPause: Unbinding service...")
-            if (this@LocationActivity is LocationChangeListener)
-                locationService?.removeLocationListener(this)
+            logd("onStop: Unbinding service...")
+            locationService?.let {
+                if (this@LocationActivity is LocationChangeListener)
+                    removeLocationListener(this)
+
+                removeLocationSettingsListener(it)
+                removeLocationPermissionListener(it)
+            }
+
             unbindService(locationServiceConn)
             bound = false
         }
@@ -189,7 +206,7 @@ abstract class LocationActivity : AppCompatActivity() {
     private fun checkSettings() {
         logd("Checking settings")
 
-        val builder = LocationSettingsRequest.Builder().addLocationRequest(LocationRequest.create())
+        val builder = LocationSettingsRequest.Builder().addLocationRequest(locationRequest)
         val task = LocationServices.getSettingsClient(this).checkLocationSettings(builder.build())
 
         task.addOnCompleteListener {
@@ -242,9 +259,8 @@ abstract class LocationActivity : AppCompatActivity() {
     }
 
     private fun permissionGrantedCallCallbackAndBind() {
-        logd("Permission granted. Binding service.")
+        logd("Permission granted. Notifying listeners $locationPermissionListeners.")
         locationPermissionListeners.forEach { it.onLocationPermissionGranted() }
-        bind()
     }
 
     private fun askForPermission() {
@@ -315,7 +331,6 @@ abstract class LocationActivity : AppCompatActivity() {
     fun removeLocationServiceConnectionListener(listener: LocationServiceConnectionListener) {
         locationServiceConnectionListeners.remove(listener)
     }
-
 
     private fun logd(msg: String) {
         if (LocationService.debug) Log.d("LocationActivity", msg)

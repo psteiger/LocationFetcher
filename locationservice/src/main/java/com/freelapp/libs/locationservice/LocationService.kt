@@ -8,6 +8,7 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Binder
 import android.os.Bundle
+import android.os.IBinder
 import android.os.SystemClock
 import android.util.Log
 import com.google.android.gms.location.LocationCallback
@@ -17,7 +18,10 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.LocationSource
 import com.google.firebase.auth.FirebaseAuth
 
-class LocationService : Service(), LocationSource {
+class LocationService : Service(),
+    LocationSource,
+    LocationPermissionListener,
+    LocationSettingsListener {
 
     companion object {
         var waitForFirebaseAuth: Boolean = false
@@ -52,14 +56,18 @@ class LocationService : Service(), LocationSource {
                 }
             }
         }
-    private var requestingLocationUpdates = false
+    private var requestingLocationUpdatesFromGps = false
+    private var requestingLocationUpdatesFromNetwork = false
+    private var requestingLocationUpdatesFromFusedLocationClient = false
     private val locationChangedListeners = mutableSetOf<LocationChangeListener>()
     private val fusedLocationClient by lazy { LocationServices.getFusedLocationProviderClient(this@LocationService) }
     private val locationManager by lazy { getSystemService(Context.LOCATION_SERVICE) as LocationManager }
     private val locationListener = object : LocationListener {
-        override fun onLocationChanged(p0: Location?) = p0?.let {
-            currentLocation = it
-        } ?: Unit
+        override fun onLocationChanged(p0: Location?) {
+            p0?.let {
+                currentLocation = it
+            }
+        }
         override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) = Unit
         override fun onProviderEnabled(provider: String?) = Unit
         override fun onProviderDisabled(provider: String?) = Unit
@@ -103,7 +111,17 @@ class LocationService : Service(), LocationSource {
     // continue running until it is explicitly stopped: return sticky
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int) = START_NOT_STICKY
 
-    override fun onBind(intent: Intent) = binder
+    override fun onBind(intent: Intent?): IBinder? {
+        logd("onBind $intent")
+        startRequestingLocationUpdates()
+        return binder
+    }
+
+    override fun onUnbind(intent: Intent?): Boolean {
+        logd("onUnbind $intent")
+        stopRequestingLocationUpdates()
+        return super.onUnbind(intent)
+    }
 
     /**
      * Updates whoever registers about location changes.
@@ -127,7 +145,9 @@ class LocationService : Service(), LocationSource {
         mapListener = listener
     }
 
-    override fun deactivate() = Unit
+    override fun deactivate() {
+        mapListener = null
+    }
 
     /**
      * Location methods
@@ -141,7 +161,8 @@ class LocationService : Service(), LocationSource {
                     currentLocation = it
                 } // In some rare situations this can be null
             }
-        } catch (e: SecurityException) { /* should never happen */
+        } catch (e: SecurityException) {
+            loge("Fused location client failed to get location", e)
         }
     }
 
@@ -159,34 +180,41 @@ class LocationService : Service(), LocationSource {
     }
 
     fun stopRequestingLocationUpdates() {
-        if (requestingLocationUpdates) {
-            logd("Stop requesting location updates")
+        logd("Stop requesting location updates")
 
-            requestingLocationUpdates = false
+        if (requestingLocationUpdatesFromGps) {
             try {
                 locationManager.removeUpdates(gpsLocationManagerListener)
-            } catch (_: Throwable) {
+                requestingLocationUpdatesFromGps = false
+            } catch (e: Exception) {
+                loge("Couldn't stop requesting location updates from GPS", e)
             }
+        }
 
+        if (requestingLocationUpdatesFromNetwork) {
             try {
                 locationManager.removeUpdates(networkLocationManagerListener)
-            } catch (_: Throwable) {
+                requestingLocationUpdatesFromNetwork = false
+            } catch (e: Exception) {
+                loge("Couldn't stop requesting location updates from cellular network", e)
             }
+        }
 
+        if (requestingLocationUpdatesFromFusedLocationClient) {
             try {
                 fusedLocationClient.removeLocationUpdates(fusedLocationClientCallback)
-            } catch (_: Throwable) {
+                requestingLocationUpdatesFromFusedLocationClient = false
+            } catch (e: Exception) {
+                loge("Couldn't stop requesting location updates from fused location client", e)
             }
         }
     }
 
     fun startRequestingLocationUpdates() {
-        if (!requestingLocationUpdates) {
-            logd("Start requesting location updates")
+        logd("Start requesting location updates")
 
-            requestingLocationUpdates = true
-
-            // can happen: SecurityException (permission) or IllegalArgumentException: 'provider doesn't exist: gps'
+        if (!requestingLocationUpdatesFromGps) {
+            logd("Start requesting location updates from GPS")
             try {
                 locationManager.requestLocationUpdates(
                     LocationManager.GPS_PROVIDER,
@@ -194,9 +222,16 @@ class LocationService : Service(), LocationSource {
                     locationRequest.smallestDisplacement,
                     gpsLocationManagerListener
                 )
-            } catch (_: SecurityException) {
-            } catch (_: IllegalArgumentException) {} // provider doesn't exist: gps
+                requestingLocationUpdatesFromGps = true
+            } catch (e: SecurityException) { // no permission
+                loge("Couldn't request location updates from GPS", e)
+            } catch (e: IllegalArgumentException) { // provider doesn't exist: gps
+                loge("Couldn't request location updates from GPS", e)
+            }
+        }
 
+        if (!requestingLocationUpdatesFromNetwork) {
+            logd("Start requesting location updates from celullar network")
             try {
                 locationManager.requestLocationUpdates(
                     LocationManager.NETWORK_PROVIDER,
@@ -204,12 +239,26 @@ class LocationService : Service(), LocationSource {
                     locationRequest.smallestDisplacement,
                     networkLocationManagerListener
                 )
-            } catch (_: SecurityException) {
-            } catch (_: IllegalArgumentException) {} // provider doesn't exist: network
+                requestingLocationUpdatesFromNetwork = true
+            } catch (e: SecurityException) { // no permission
+                loge("Couldn't request location updates from cellular network", e)
+            } catch (e: IllegalArgumentException) { // provider doesn't exist: network
+                loge("Couldn't request location updates from cellular network", e)
+            }
+        }
 
+        if (!requestingLocationUpdatesFromFusedLocationClient) {
+            logd("Start requesting location updates from fused location client")
             try {
-                fusedLocationClient.requestLocationUpdates(fusedLocationClientRequest, fusedLocationClientCallback, null)
-            } catch (_: SecurityException) {} // should never happen
+                fusedLocationClient.requestLocationUpdates(
+                    fusedLocationClientRequest,
+                    fusedLocationClientCallback,
+                    null
+                )
+                requestingLocationUpdatesFromFusedLocationClient = true
+            } catch (e: SecurityException) {
+                loge("Couldn't request location updates from fused location client", e)
+            }
         }
     }
 
@@ -230,5 +279,21 @@ class LocationService : Service(), LocationSource {
 
     private fun logd(msg: String) {
         if (debug) Log.d("LocationService", msg)
+    }
+
+    private fun loge(msg: String, e: Exception) {
+        Log.e("LocationService", msg, e)
+    }
+
+    override fun onLocationPermissionGranted() {
+        startRequestingLocationUpdates()
+    }
+
+    override fun onLocationSettingsOn() {
+        startRequestingLocationUpdates()
+    }
+
+    override fun onLocationSettingsOff() {
+        stopRequestingLocationUpdates()
     }
 }
