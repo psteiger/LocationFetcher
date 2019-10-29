@@ -105,8 +105,6 @@ abstract class LocationActivity : AppCompatActivity() {
                 }
             }
         }
-
-        checkSettings()
     }
 
     override fun onDestroy() {
@@ -143,6 +141,7 @@ abstract class LocationActivity : AppCompatActivity() {
         logd("onStart")
         super.onStart()
         bind()
+        checkSettings()
     }
 
     override fun onStop() {
