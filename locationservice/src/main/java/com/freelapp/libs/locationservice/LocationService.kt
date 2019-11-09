@@ -15,12 +15,10 @@ import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
-import com.google.android.gms.maps.LocationSource
 import com.google.firebase.auth.FirebaseAuth
 import java.lang.ref.WeakReference
 
 class LocationService : Service(),
-    LocationSource,
     LocationPermissionListener,
     LocationSettingsListener {
 
@@ -32,7 +30,6 @@ class LocationService : Service(),
 
     private var lastUpdate: Long = 0
     private var gotUpdates: Int = 0
-    private var mapListener: LocationSource.OnLocationChangedListener? = null
     private var currentLocation: Location? = null
         set(value) {
             value?.let {
@@ -139,20 +136,6 @@ class LocationService : Service(),
     }
 
     /**
-     * Google Maps needs a listener of its own type.
-     * Activates or deactivates map listener.
-     */
-    override fun activate(listener: LocationSource.OnLocationChangedListener) {
-        logd("Activating LocationSource for map listener $listener")
-        mapListener = listener
-    }
-
-    override fun deactivate() {
-        logd("Activating LocationSource for map")
-        mapListener = null
-    }
-
-    /**
      * Location methods
      */
     private fun fetchLocation() {
@@ -174,11 +157,6 @@ class LocationService : Service(),
         locationChangedListeners.forEach {
             logd("Broadcasting location $location to listener $it")
             it.get()?.onLocationReceived(location)
-        }
-
-        mapListener?.run {
-            logd("Broadcasting location $location to map listener $this")
-            onLocationChanged(location)
         }
     }
 
