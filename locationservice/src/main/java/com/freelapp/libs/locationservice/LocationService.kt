@@ -17,6 +17,7 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.LocationSource
 import com.google.firebase.auth.FirebaseAuth
+import java.lang.ref.WeakReference
 
 class LocationService : Service(),
     LocationSource,
@@ -31,7 +32,12 @@ class LocationService : Service(),
 
     private var lastUpdate: Long = 0
     private var gotUpdates: Int = 0
-    private var mapListener: LocationSource.OnLocationChangedListener? = null
+    private var _mapListenerWeakRef: WeakReference<LocationSource.OnLocationChangedListener?>? = null
+    private var mapListener: LocationSource.OnLocationChangedListener?
+        get() = _mapListenerWeakRef?.get()
+        set(value) {
+            _mapListenerWeakRef = WeakReference(value)
+        }
     private var currentLocation: Location? = null
         set(value) {
             value?.let {
@@ -59,7 +65,7 @@ class LocationService : Service(),
     private var requestingLocationUpdatesFromGps = false
     private var requestingLocationUpdatesFromNetwork = false
     private var requestingLocationUpdatesFromFusedLocationClient = false
-    private val locationChangedListeners = mutableSetOf<LocationChangeListener>()
+    private val locationChangedListeners = mutableSetOf<WeakReference<LocationChangeListener>>()
     private val fusedLocationClient by lazy { LocationServices.getFusedLocationProviderClient(this@LocationService) }
     private val locationManager by lazy { getSystemService(Context.LOCATION_SERVICE) as LocationManager }
     private val locationListener = object : LocationListener {
@@ -128,13 +134,13 @@ class LocationService : Service(),
      */
     fun addLocationListener(listener: LocationChangeListener) {
         logd("Adding location listener $listener")
-        locationChangedListeners.add(listener)
+        locationChangedListeners.addWeakRef(listener)
         broadcastLocation()
     }
 
     fun removeLocationListener(listener: LocationChangeListener) {
         logd("Removing location listener $listener")
-        locationChangedListeners.remove(listener)
+        locationChangedListeners.removeWeakRef(listener)
     }
 
     /**
@@ -170,7 +176,7 @@ class LocationService : Service(),
         logd("Broadcasting location $location to listeners $locationChangedListeners")
         locationChangedListeners.forEach {
             logd("Broadcasting location $location to listener $it")
-            it.onLocationReceived(location)
+            it.get()?.onLocationReceived(location)
         }
 
         mapListener?.run {

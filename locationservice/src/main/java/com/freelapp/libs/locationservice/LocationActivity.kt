@@ -18,6 +18,7 @@ import com.google.android.gms.common.api.ResolvableApiException
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.channels.actor
 import java.lang.ClassCastException
+import java.lang.ref.WeakReference
 
 /**
  * Service connection vars and binding code common to all classes is in this abstract class.
@@ -48,26 +49,22 @@ abstract class LocationActivity : AppCompatActivity() {
 
     private var bound: Boolean = false
 
-    private val locationPermissionListeners = mutableListOf<LocationPermissionListener>()
-    private val locationServiceConnectionListeners = mutableListOf<LocationServiceConnectionListener>()
-    private val locationSettingsListeners = mutableListOf<LocationSettingsListener>()
+    private val locationPermissionListeners = mutableSetOf<WeakReference<LocationPermissionListener>>()
+    private val locationServiceConnectionListeners = mutableSetOf<WeakReference<LocationServiceConnectionListener>>()
+    private val locationSettingsListeners = mutableSetOf<WeakReference<LocationSettingsListener>>()
 
     private val locationServiceConn: ServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             logd( "LocationService bound. Notifying listeners: $locationServiceConnectionListeners")
 
-            locationService = (service as LocationService.LocalBinder).service.apply {
-                if (this@LocationActivity is LocationChangeListener) {
-                    addLocationListener(this@LocationActivity)
-                }
-            }.also {
-                addLocationPermissionListener(it)
-                addLocationSettingsListener(it)
-            }
+            locationService = (service as LocationService.LocalBinder).service
+
+            if (this@LocationActivity is LocationChangeListener)
+                addLocationListener(this@LocationActivity)
 
             bound = true
 
-            locationServiceConnectionListeners.forEach { it.onLocationServiceConnected() }
+            locationServiceConnectionListeners.forEach { it.get()?.onLocationServiceConnected() }
         }
 
         override fun onServiceDisconnected(arg0: ComponentName) {
@@ -76,7 +73,7 @@ abstract class LocationActivity : AppCompatActivity() {
             locationService = null
             bound = false
 
-            locationServiceConnectionListeners.forEach { it.onLocationServiceDisconnected() }
+            locationServiceConnectionListeners.forEach { it.get()?.onLocationServiceDisconnected() }
         }
     }
 
@@ -255,17 +252,17 @@ abstract class LocationActivity : AppCompatActivity() {
 
     private fun notifyListenersPermissionGranted() {
         logd("Permission granted - Notifying listeners $locationPermissionListeners.")
-        locationPermissionListeners.forEach { it.onLocationPermissionGranted() }
+        locationPermissionListeners.forEach { it.get()?.onLocationPermissionGranted() }
     }
 
     private fun notifyListenersSettingsOn() {
         logd("Location is enabled in Settings - Notifying listeners $locationSettingsListeners")
-        locationSettingsListeners.forEach { it.onLocationSettingsOn() }
+        locationSettingsListeners.forEach { it.get()?.onLocationSettingsOn() }
     }
 
     private fun notifyListenersSettingsOff() {
         logd("Location is disabled in Settings - Notifying listeners $locationSettingsListeners")
-        locationSettingsListeners.forEach { it.onLocationSettingsOn() }
+        locationSettingsListeners.forEach { it.get()?.onLocationSettingsOff() }
     }
 
     private fun askForPermission() {
@@ -314,27 +311,28 @@ abstract class LocationActivity : AppCompatActivity() {
     }
 
     fun addLocationPermissionListener(listener: LocationPermissionListener) {
-        locationPermissionListeners.add(listener)
+        locationPermissionListeners.addWeakRef(listener)
     }
 
     fun removeLocationPermissionListener(listener: LocationPermissionListener) {
-        locationPermissionListeners.remove(listener)
+        var toRemove: WeakReference<LocationPermissionListener>? = null
+        locationPermissionListeners.removeWeakRef(listener)
     }
 
     fun addLocationSettingsListener(listener: LocationSettingsListener) {
-        locationSettingsListeners.add(listener)
+        locationSettingsListeners.addWeakRef(listener)
     }
 
     fun removeLocationSettingsListener(listener: LocationSettingsListener) {
-        locationSettingsListeners.remove(listener)
+        locationSettingsListeners.removeWeakRef(listener)
     }
 
     fun addLocationServiceConnectionListener(listener: LocationServiceConnectionListener) {
-        locationServiceConnectionListeners.add(listener)
+        locationServiceConnectionListeners.addWeakRef(listener)
     }
 
     fun removeLocationServiceConnectionListener(listener: LocationServiceConnectionListener) {
-        locationServiceConnectionListeners.remove(listener)
+        locationServiceConnectionListeners.removeWeakRef(listener)
     }
 
     private fun logd(msg: String) {
