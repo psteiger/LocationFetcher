@@ -315,7 +315,6 @@ abstract class LocationActivity : AppCompatActivity() {
     }
 
     fun removeLocationPermissionListener(listener: LocationPermissionListener) {
-        var toRemove: WeakReference<LocationPermissionListener>? = null
         locationPermissionListeners.removeWeakRef(listener)
     }
 
