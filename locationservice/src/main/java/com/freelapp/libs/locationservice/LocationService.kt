@@ -32,12 +32,7 @@ class LocationService : Service(),
 
     private var lastUpdate: Long = 0
     private var gotUpdates: Int = 0
-    private var _mapListenerWeakRef: WeakReference<LocationSource.OnLocationChangedListener?>? = null
-    private var mapListener: LocationSource.OnLocationChangedListener?
-        get() = _mapListenerWeakRef?.get()
-        set(value) {
-            _mapListenerWeakRef = WeakReference(value)
-        }
+    private var mapListener: LocationSource.OnLocationChangedListener? = null
     private var currentLocation: Location? = null
         set(value) {
             value?.let {
@@ -148,10 +143,12 @@ class LocationService : Service(),
      * Activates or deactivates map listener.
      */
     override fun activate(listener: LocationSource.OnLocationChangedListener) {
+        logd("Activating LocationSource for map listener $listener")
         mapListener = listener
     }
 
     override fun deactivate() {
+        logd("Activating LocationSource for map")
         mapListener = null
     }
 
