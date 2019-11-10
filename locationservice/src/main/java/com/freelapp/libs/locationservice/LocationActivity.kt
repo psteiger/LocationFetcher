@@ -54,6 +54,8 @@ abstract class LocationActivity : AppCompatActivity() {
     private val locationServiceConnectionListeners = mutableSetOf<WeakReference<LocationServiceConnectionListener>>()
     private val locationSettingsListeners = mutableSetOf<WeakReference<LocationSettingsListener>>()
 
+    private var permissionRequestShowing = false
+
     private val locationServiceConn: ServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             logd( "LocationService bound. Notifying listeners: $locationServiceConnectionListeners")
@@ -173,6 +175,8 @@ abstract class LocationActivity : AppCompatActivity() {
                                             grantResults: IntArray) {
         when (requestCode) {
             HAS_LOCATION_PERMISSION_CODE -> {
+                logd("onRequestPermissionsResult: requestCode $requestCode, permissions $permissions, grantResults $grantResults")
+                permissionRequestShowing = false
                 // If request is cancelled, the result arrays are empty.
                 if (grantResults.firstOrNull() == PERMISSION_GRANTED) {
                     notifyListenersPermissionGranted()
@@ -276,6 +280,10 @@ abstract class LocationActivity : AppCompatActivity() {
 
     private fun askForPermission() {
         logd("Asking for permission")
+        if (permissionRequestShowing) {
+            logd("Permission request already showing. Not requesting again.")
+        }
+        permissionRequestShowing = true
         ActivityCompat.requestPermissions(this, LOCATION_PERMISSION, HAS_LOCATION_PERMISSION_CODE)
     }
 
