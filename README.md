@@ -12,7 +12,7 @@ The service uses GPS and network by default and needs ACCESS_FINE_LOCATION permi
 ### Using Gradle
 
 ```
-implementation 'com.github.psteiger:location-service:3.6'
+implementation 'com.github.psteiger:location-service:3.7'
 ```
 
 ### On Manifest
@@ -49,7 +49,7 @@ This is the simplest and recommended solution.
 
 Make your Activity:
 
-1. Extend `LocationActivity()` and implement `LocationChangeListener`.
+1. Extend `LocationActivity()` and implement `LocationChangedListener`.
 2. Override `onLocationReceived(l: Location)`.
 3. (Optional) Implement `LocationServiceConnectionListener` and override `onLocationServiceConnected()` and `onLocationServiceDisconnected()` to run code after service connection and disconnection. Note that this refers to service connection, not location changes.
 4. (Optional) Implement `LocationPermissionListener` and override `onLocationPermissionGranted()` to run code after user granted location permission to the app.
@@ -58,7 +58,7 @@ Make your Activity:
 ```
 import com.freelapp.libs.locationservice.LocationActivity
 
-class MyActivity : LocationActivity() : LocationChangeListener {
+class MyActivity : LocationActivity() : LocationChangedListener {
 
     private var currentLocation: Location? = null
 

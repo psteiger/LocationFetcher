@@ -57,7 +57,7 @@ class LocationService : Service(),
     private var requestingLocationUpdatesFromGps = false
     private var requestingLocationUpdatesFromNetwork = false
     private var requestingLocationUpdatesFromFusedLocationClient = false
-    private val locationChangedListeners = mutableSetOf<WeakReference<LocationChangeListener>>()
+    private val locationChangedListeners = mutableSetOf<WeakReference<LocationChangedListener>>()
     private val fusedLocationClient by lazy { LocationServices.getFusedLocationProviderClient(this@LocationService) }
     private val locationManager by lazy { getSystemService(Context.LOCATION_SERVICE) as LocationManager }
     private val locationListener = object : LocationListener {
@@ -124,15 +124,20 @@ class LocationService : Service(),
     /**
      * Updates whoever registers about location changes.
      */
-    fun addLocationListener(listener: LocationChangeListener) {
+    fun addLocationListener(listener: LocationChangedListener) {
         logd("Adding location listener $listener")
         locationChangedListeners.addWeakRef(listener)
         broadcastLocation()
     }
 
-    fun removeLocationListener(listener: LocationChangeListener) {
+    fun removeLocationListener(listener: LocationChangedListener) {
         logd("Removing location listener $listener")
         locationChangedListeners.removeWeakRef(listener)
+    }
+
+    // Call before unbinding
+    fun clearLocationChangedListeners() {
+        locationChangedListeners.clear()
     }
 
     /**
