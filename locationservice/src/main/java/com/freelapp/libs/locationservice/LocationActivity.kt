@@ -282,6 +282,7 @@ abstract class LocationActivity : AppCompatActivity() {
         logd("Asking for permission")
         if (permissionRequestShowing) {
             logd("Permission request already showing. Not requesting again.")
+            return
         }
         permissionRequestShowing = true
         ActivityCompat.requestPermissions(this, LOCATION_PERMISSION, HAS_LOCATION_PERMISSION_CODE)
