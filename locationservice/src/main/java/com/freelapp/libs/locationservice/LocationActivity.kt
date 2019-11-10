@@ -36,14 +36,14 @@ abstract class LocationActivity : AppCompatActivity() {
     }
 
     private sealed class LocationServiceMsg {
-        class AddLocationListener(val listener: LocationChangeListener) : LocationServiceMsg()
-        class RemoveLocationListener(val listener: LocationChangeListener) : LocationServiceMsg()
+        class AddLocationListener(val listener: LocationChangedListener) : LocationServiceMsg()
+        class RemoveLocationListener(val listener: LocationChangedListener) : LocationServiceMsg()
         object StartRequestingLocationUpdates : LocationServiceMsg()
         object StopRequestingLocationUpdates : LocationServiceMsg()
         object BroadcastLocation : LocationServiceMsg()
     }
 
-    private lateinit var locationServiceActor: SendChannel<LocationServiceMsg>
+    private var locationServiceActor: SendChannel<LocationServiceMsg>? = null
 
     var locationService: LocationService? = null
         private set
@@ -55,6 +55,9 @@ abstract class LocationActivity : AppCompatActivity() {
     private val locationSettingsListeners = mutableSetOf<WeakReference<LocationSettingsListener>>()
 
     private var permissionRequestShowing = false
+    private var settingsRequestShowing = false
+
+    private val boundServiceChannel = Channel<LocationServiceMsg>(Channel.UNLIMITED)
 
     private val locationServiceConn: ServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
@@ -65,19 +68,21 @@ abstract class LocationActivity : AppCompatActivity() {
                 addLocationSettingsListener(it)
             }
 
-            if (this@LocationActivity is LocationChangeListener)
+            if (this@LocationActivity is LocationChangedListener)
                 addLocationListener(this@LocationActivity)
 
             bound = true
-
+            locationServiceActor = createLocationServiceActor()
             locationServiceConnectionListeners.forEach { it.get()?.onLocationServiceConnected() }
         }
 
         override fun onServiceDisconnected(arg0: ComponentName) {
             logd("LocationService disconnected. Notifying listeners: $locationServiceConnectionListeners")
 
-            locationService = null
             bound = false
+            locationServiceActor?.close()
+            locationServiceActor = null
+            locationService = null
 
             locationServiceConnectionListeners.forEach { it.get()?.onLocationServiceDisconnected() }
         }
@@ -93,26 +98,7 @@ abstract class LocationActivity : AppCompatActivity() {
         if (this is LocationSettingsListener)
             addLocationSettingsListener(this)
 
-        locationServiceActor = lifecycleScope.actor(
-            Dispatchers.Main,
-            capacity = Channel.UNLIMITED
-        ) {
-            for (msg in channel) {
-                // avoids processing messages while service not bound, but instead of ignoring command, wait for binding.
-                // that is why actors are used here.
-                while (!bound) delay(100)
-
-                when (msg) {
-                    is LocationServiceMsg.AddLocationListener -> locationService?.addLocationListener(msg.listener)
-                    is LocationServiceMsg.RemoveLocationListener -> locationService?.removeLocationListener(msg.listener)
-                    LocationServiceMsg.StartRequestingLocationUpdates -> locationService?.startRequestingLocationUpdates()
-                    LocationServiceMsg.StopRequestingLocationUpdates -> locationService?.stopRequestingLocationUpdates()
-                    LocationServiceMsg.BroadcastLocation -> locationService?.broadcastLocation()
-                }
-            }
-        }
-
-        locationServiceActor.offer(LocationServiceMsg.StartRequestingLocationUpdates)
+        boundServiceChannel.offer(LocationServiceMsg.StartRequestingLocationUpdates)
     }
 
     override fun onDestroy() {
@@ -129,16 +115,19 @@ abstract class LocationActivity : AppCompatActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         when (requestCode) {
-            REQUEST_CHECK_SETTINGS -> when (resultCode) {
-                RESULT_OK -> {
-                    notifyListenersSettingsOn()
-                    askForPermissionIfNeeded()
-                }
-                RESULT_CANCELED -> {
-                    notifyListenersSettingsOff()
-                    if (askForEnabledSettingsUntilGiven) {
-                        showSnackbar(R.string.need_location_settings)
-                        checkSettings()
+            REQUEST_CHECK_SETTINGS -> {
+                settingsRequestShowing = false
+                when (resultCode) {
+                    RESULT_OK -> {
+                        notifyListenersSettingsOn()
+                        askForPermissionIfNeeded()
+                    }
+                    RESULT_CANCELED -> {
+                        notifyListenersSettingsOff()
+                        if (askForEnabledSettingsUntilGiven) {
+                            showSnackbar(R.string.need_location_settings)
+                            checkSettings()
+                        }
                     }
                 }
             }
@@ -158,15 +147,16 @@ abstract class LocationActivity : AppCompatActivity() {
         if (bound) {
             logd("onStop: Unbinding service...")
             locationService?.let {
-                if (this@LocationActivity is LocationChangeListener)
-                    removeLocationListener(this)
+                it.clearLocationChangedListeners()
 
                 removeLocationSettingsListener(it)
                 removeLocationPermissionListener(it)
             }
 
-            unbindService(locationServiceConn)
             bound = false
+            locationServiceActor?.close()
+            locationServiceActor = null
+            unbindService(locationServiceConn)
         }
     }
 
@@ -194,6 +184,21 @@ abstract class LocationActivity : AppCompatActivity() {
     /**
      * Private methods
      */
+    private fun createLocationServiceActor() = lifecycleScope.actor<LocationServiceMsg>(Dispatchers.Main) {
+        for (msg in boundServiceChannel) {
+            // avoids processing messages while service not bound, but instead of ignoring command, wait for binding.
+            // that is why actors are used here.
+
+            when (msg) {
+                is LocationServiceMsg.AddLocationListener -> locationService?.addLocationListener(msg.listener)
+                is LocationServiceMsg.RemoveLocationListener -> locationService?.removeLocationListener(msg.listener)
+                LocationServiceMsg.StartRequestingLocationUpdates -> locationService?.startRequestingLocationUpdates()
+                LocationServiceMsg.StopRequestingLocationUpdates -> locationService?.stopRequestingLocationUpdates()
+                LocationServiceMsg.BroadcastLocation -> locationService?.broadcastLocation()
+            }
+        }
+    }
+
     private fun showSnackbar(res: Int) {
         Snackbar
             .make(
@@ -238,10 +243,13 @@ abstract class LocationActivity : AppCompatActivity() {
 
                             logd("Checking settings - Resolution is possible. Requesting...")
 
-                            resolvable.startResolutionForResult(
-                                this,
-                                REQUEST_CHECK_SETTINGS
-                            )
+                            if (!settingsRequestShowing) {
+                                settingsRequestShowing = true
+                                resolvable.startResolutionForResult(
+                                    this,
+                                    REQUEST_CHECK_SETTINGS
+                                )
+                            }
 
                         } catch (_: IntentSender.SendIntentException) {
                             // Ignore the error.
@@ -298,24 +306,24 @@ abstract class LocationActivity : AppCompatActivity() {
      * Public API
      */
     /* update whoever registers about location changes */
-    fun addLocationListener(listener: LocationChangeListener) {
-        locationServiceActor.offer(LocationServiceMsg.AddLocationListener(listener))
+    fun addLocationListener(listener: LocationChangedListener) {
+        boundServiceChannel.offer(LocationServiceMsg.AddLocationListener(listener))
     }
 
-    fun removeLocationListener(listener: LocationChangeListener) {
-        locationServiceActor.offer(LocationServiceMsg.RemoveLocationListener(listener))
+    fun removeLocationListener(listener: LocationChangedListener) {
+        boundServiceChannel.offer(LocationServiceMsg.RemoveLocationListener(listener))
     }
 
     fun startRequestingLocationUpdates() {
-        locationServiceActor.offer(LocationServiceMsg.StartRequestingLocationUpdates)
+        boundServiceChannel.offer(LocationServiceMsg.StartRequestingLocationUpdates)
     }
 
     fun stopRequestingLocationUpdates() {
-        locationServiceActor.offer(LocationServiceMsg.StopRequestingLocationUpdates)
+        boundServiceChannel.offer(LocationServiceMsg.StopRequestingLocationUpdates)
     }
 
     fun broadcastLocation() {
-        locationServiceActor.offer(LocationServiceMsg.BroadcastLocation)
+        boundServiceChannel.offer(LocationServiceMsg.BroadcastLocation)
     }
 
     fun addLocationPermissionListener(listener: LocationPermissionListener) {
