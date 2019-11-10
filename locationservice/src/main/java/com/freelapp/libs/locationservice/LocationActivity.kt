@@ -68,12 +68,12 @@ abstract class LocationActivity : AppCompatActivity() {
                 addLocationSettingsListener(it)
             }
 
-            if (this@LocationActivity is LocationChangedListener)
-                addLocationListener(this@LocationActivity)
-
             bound = true
             locationServiceActor = createLocationServiceActor()
             locationServiceConnectionListeners.forEach { it.get()?.onLocationServiceConnected() }
+
+            if (this@LocationActivity is LocationChangedListener)
+                addLocationListener(this@LocationActivity)
         }
 
         override fun onServiceDisconnected(arg0: ComponentName) {
