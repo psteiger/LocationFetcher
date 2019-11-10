@@ -15,6 +15,7 @@ import com.google.android.gms.location.*
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.*
 import com.google.android.gms.common.api.ResolvableApiException
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.channels.actor
 import java.lang.ClassCastException
@@ -57,7 +58,10 @@ abstract class LocationActivity : AppCompatActivity() {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             logd( "LocationService bound. Notifying listeners: $locationServiceConnectionListeners")
 
-            locationService = (service as LocationService.LocalBinder).service
+            locationService = (service as LocationService.LocalBinder).service.also {
+                addLocationPermissionListener(it)
+                addLocationSettingsListener(it)
+            }
 
             if (this@LocationActivity is LocationChangeListener)
                 addLocationListener(this@LocationActivity)
@@ -87,11 +91,14 @@ abstract class LocationActivity : AppCompatActivity() {
         if (this is LocationSettingsListener)
             addLocationSettingsListener(this)
 
-        locationServiceActor = lifecycleScope.actor(Dispatchers.Main) {
+        locationServiceActor = lifecycleScope.actor(
+            Dispatchers.Main,
+            capacity = Channel.UNLIMITED
+        ) {
             for (msg in channel) {
                 // avoids processing messages while service not bound, but instead of ignoring command, wait for binding.
                 // that is why actors are used here.
-                while (!bound) delay(200)
+                while (!bound) delay(100)
 
                 when (msg) {
                     is LocationServiceMsg.AddLocationListener -> locationService?.addLocationListener(msg.listener)
@@ -102,6 +109,8 @@ abstract class LocationActivity : AppCompatActivity() {
                 }
             }
         }
+
+        locationServiceActor.offer(LocationServiceMsg.StartRequestingLocationUpdates)
     }
 
     override fun onDestroy() {
@@ -281,33 +290,23 @@ abstract class LocationActivity : AppCompatActivity() {
      */
     /* update whoever registers about location changes */
     fun addLocationListener(listener: LocationChangeListener) {
-        lifecycleScope.launch(start = CoroutineStart.UNDISPATCHED) {
-            locationServiceActor.send(LocationServiceMsg.AddLocationListener(listener))
-        }
+        locationServiceActor.offer(LocationServiceMsg.AddLocationListener(listener))
     }
 
     fun removeLocationListener(listener: LocationChangeListener) {
-        lifecycleScope.launch(start = CoroutineStart.UNDISPATCHED) {
-            locationServiceActor.send(LocationServiceMsg.RemoveLocationListener(listener))
-        }
+        locationServiceActor.offer(LocationServiceMsg.RemoveLocationListener(listener))
     }
 
     fun startRequestingLocationUpdates() {
-        lifecycleScope.launch(start = CoroutineStart.UNDISPATCHED) {
-            locationServiceActor.send(LocationServiceMsg.StartRequestingLocationUpdates)
-        }
+        locationServiceActor.offer(LocationServiceMsg.StartRequestingLocationUpdates)
     }
 
     fun stopRequestingLocationUpdates() {
-        lifecycleScope.launch(start = CoroutineStart.UNDISPATCHED) {
-            locationServiceActor.send(LocationServiceMsg.StopRequestingLocationUpdates)
-        }
+        locationServiceActor.offer(LocationServiceMsg.StopRequestingLocationUpdates)
     }
 
     fun broadcastLocation() {
-        lifecycleScope.launch(start = CoroutineStart.UNDISPATCHED) {
-            locationServiceActor.send(LocationServiceMsg.BroadcastLocation)
-        }
+        locationServiceActor.offer(LocationServiceMsg.BroadcastLocation)
     }
 
     fun addLocationPermissionListener(listener: LocationPermissionListener) {
