@@ -27,9 +27,12 @@ import java.lang.ref.WeakReference
 abstract class LocationActivity : AppCompatActivity() {
 
     companion object {
-        const val HAS_LOCATION_PERMISSION_CODE = 11666
+        const val HAS_LOCATION_PERMISSIONS_CODE = 11666
         const val REQUEST_CHECK_SETTINGS = 11667
-        val LOCATION_PERMISSION = arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
+        val LOCATION_PERMISSIONS = arrayOf(
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION
+        )
         var askForPermissionUntilGiven: Boolean = false
         var askForEnabledSettingsUntilGiven: Boolean = false
         var requestPermissionRationale: Int = R.string.need_location_permission
@@ -164,18 +167,18 @@ abstract class LocationActivity : AppCompatActivity() {
                                             permissions: Array<String>,
                                             grantResults: IntArray) {
         when (requestCode) {
-            HAS_LOCATION_PERMISSION_CODE -> {
+            HAS_LOCATION_PERMISSIONS_CODE -> {
                 logd("onRequestPermissionsResult: requestCode $requestCode, permissions $permissions, grantResults $grantResults")
                 permissionRequestShowing = false
                 // If request is cancelled, the result arrays are empty.
-                if (grantResults.firstOrNull() == PERMISSION_GRANTED) {
+                if (grantResults.all { it == PERMISSION_GRANTED }) {
                     notifyListenersPermissionGranted()
                 } else if (shouldShowRationale()) {
                     logd("Permission failed")
                     showSnackbar(requestPermissionRationale)
 
-                    if (!hasPermission() && askForPermissionUntilGiven)
-                        askForPermission()
+                    if (!hasPermissions() && askForPermissionUntilGiven)
+                        askForPermissions()
                 }
             }
         }
@@ -265,8 +268,8 @@ abstract class LocationActivity : AppCompatActivity() {
     }
 
     private fun askForPermissionIfNeeded() {
-        if (!hasPermission())
-            askForPermission()
+        if (!hasPermissions())
+            askForPermissions()
         else
             notifyListenersPermissionGranted()
     }
@@ -286,21 +289,23 @@ abstract class LocationActivity : AppCompatActivity() {
         locationSettingsListeners.forEach { it.get()?.onLocationSettingsOff() }
     }
 
-    private fun askForPermission() {
+    private fun askForPermissions() {
         logd("Asking for permission")
         if (permissionRequestShowing) {
             logd("Permission request already showing. Not requesting again.")
             return
         }
         permissionRequestShowing = true
-        ActivityCompat.requestPermissions(this, LOCATION_PERMISSION, HAS_LOCATION_PERMISSION_CODE)
+        ActivityCompat.requestPermissions(this, LOCATION_PERMISSIONS, HAS_LOCATION_PERMISSIONS_CODE)
     }
 
-    private fun hasPermission() =
-        ContextCompat.checkSelfPermission(this, LOCATION_PERMISSION.first()) == PERMISSION_GRANTED
+    private fun hasPermissions() = LOCATION_PERMISSIONS.all {
+        ContextCompat.checkSelfPermission(this, it) == PERMISSION_GRANTED
+    }
 
-    private fun shouldShowRationale() =
-        ActivityCompat.shouldShowRequestPermissionRationale(this, LOCATION_PERMISSION.first())
+    private fun shouldShowRationale() = LOCATION_PERMISSIONS.any {
+        ActivityCompat.shouldShowRequestPermissionRationale(this, it)
+    }
 
     /**
      * Public API
