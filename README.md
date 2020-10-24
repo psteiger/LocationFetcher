@@ -4,7 +4,7 @@ Simple location fetcher for Android Apps built with Kotlin and Coroutines.
 
 Building location-aware Android apps can be a bit tricky. This library makes it as simple as:
 
-```
+```kotlin
 class MyActivity : AppCompatActivity() {
 
     private val locationFetcher: LocationFetcher by lazy {
@@ -40,24 +40,30 @@ You can personalize your `locationRequest` to suit your needs.
 
 On app-level build.gradle, add dependency:
 
-```
-implementation 'com.github.psteiger:locationfetcher:5.0'
+```groovy
+dependencies {
+    implementation 'com.github.psteiger:locationfetcher:5.0'
+}
 ```
 
 ### On Manifest
 
 On root level, allow permission:
 
-```
-<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+```xml
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.yourapp">
+    
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+</manifest>
 ```
 
 ## Usage
 
 On any `FragmentActivity` or `Context` class, you can instantiate a `LocationFetcher` by calling:
 
-```
+```kotlin
 LocationFetcher.create(this)
 ```
 
@@ -71,7 +77,7 @@ Once instantiated, the component gives you three `Flow`s to collect: one for new
 
 `LocationFetcher` supports the following configurations for location fetching when creating the component:
 
-```
+```kotlin
 LocationFetcher.create(this) {
     fastestInterval = 5000
     interval = 15000
