@@ -13,7 +13,7 @@ class MyActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         lifecycleScope.launchWhenStarted {
-            location.collect { location ->
+            location.collect { location: Location ->
                 // New location received.
             }
             settingsStatus.collect { enabled: Boolean ->
