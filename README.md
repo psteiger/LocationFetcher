@@ -27,11 +27,11 @@ class MyActivity : AppCompatActivity() {
 }
 ```
 
-This library provides a simple location component, `LocationFetcher`, for use in any FragmentActivity, or any Context class, to make your Android app location-aware.
+This library provides a simple location component, `LocationFetcher`, for use in any `FragmentActivity` class, or any `Context` class, to make your Android app location-aware.
 
-The service uses GPS and network by default and needs ACCESS_FINE_LOCATION and ACCESS_COARSE_LOCATION.0
+The service uses GPS and network by default and needs `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`.
 
-You can personalize your `locationRequest` to suit your needs.
+You can personalize your `LocationRequest` to suit your needs.
 
 
 ## Installation
