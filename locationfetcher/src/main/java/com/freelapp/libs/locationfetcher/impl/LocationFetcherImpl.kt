@@ -156,7 +156,9 @@ internal class LocationFetcherImpl private constructor(
                     permissionRequester?.requirePermissions()
                 }
             }
-            requestEnableLocationSettings()
+            if (config.requestEnableLocationSettings) {
+                requestEnableLocationSettings()
+            }
             requestLocationUpdates()
         }
     }
@@ -190,30 +192,21 @@ internal class LocationFetcherImpl private constructor(
         } catch (e: ApiException) {
             logd("checkSettings: Not satisfied. Status code: ${e.statusCode}.", e)
             when (e.statusCode) {
-                LocationSettingsStatusCodes.RESOLUTION_REQUIRED -> {
+                LocationSettingsStatusCodes.RESOLUTION_REQUIRED -> try {
                     logd("checkSettings: Resolution required")
-                    try {
-                        // Cast to a resolvable exception.
-                        val resolvable = e as ResolvableApiException
-                        logd(
-                            "checkSettings: Resolution possible with $resolutionResolver." +
-                                    " config.requestLocationSettingEnablement=" +
-                                    "${config.requestEnableLocationSettings}"
-                        )
-                        if (resolutionResolver == null || !config.requestEnableLocationSettings) {
-                            _settingsStatus.value = LocationFetcher.SettingsStatus.DISABLED
-                            return LocationFetcher.SettingsStatus.DISABLED
-                        }
-                        val req = IntentSenderRequest.Builder(resolvable.resolution).build()
-                        val result = resolutionResolver.request(req).resultCode.asSettingsStatus()
-                        _settingsStatus.value = result
-                        return result
-                    } catch (e: IntentSender.SendIntentException) {
-                        logd("checkSettings: SendIntentException", e)
-                    } catch (e: ClassCastException) {
-                        logd("checkSettings: ClassCastException", e)
-                        // Ignore, should be an impossible error.
-                    }
+                    // Cast to a resolvable exception.
+                    val resolvable = e as ResolvableApiException
+                    logd("checkSettings: Resolution possible with $resolutionResolver.")
+                    if (resolutionResolver == null) return _settingsStatus.value
+                    val req = IntentSenderRequest.Builder(resolvable.resolution).build()
+                    val result = resolutionResolver.request(req).resultCode.asSettingsStatus()
+                    _settingsStatus.value = result
+                    return result
+                } catch (e: IntentSender.SendIntentException) {
+                    logd("checkSettings: SendIntentException", e)
+                } catch (e: ClassCastException) {
+                    logd("checkSettings: ClassCastException", e)
+                    // Ignore, should be an impossible error.
                 }
             }
         } catch (e: Exception) {
