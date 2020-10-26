@@ -40,7 +40,7 @@ interface LocationFetcher {
         var smallestDisplacement: Float = locationRequest.smallestDisplacement,
         var providers: List<Provider> = listOf(Provider.Fused, Provider.Network, Provider.GPS),
         var requestLocationPermissions: Boolean = true,
-        var requestLocationSettingEnablement: Boolean = true,
+        var requestEnableLocationSettings: Boolean = true,
         var debug: Boolean = false
     )
 
