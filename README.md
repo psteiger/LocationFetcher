@@ -16,10 +16,10 @@ class MyActivity : AppCompatActivity() {
             location.collect { location: Location? ->
                 // New location received.
             }
-            settingsStatus.collect { enabled: SettingsStatus ->
+            settingsStatus.collect { enabled: LocationFetcher.SettingsStatus ->
                 // Location got enabled or disabled in device settings.
             }
-            permissionStatus.collect { allowed: PermissionStatus ->
+            permissionStatus.collect { allowed: LocationFetcher.PermissionStatus ->
                 // App got allowed or disallowed to know the device's location.
             }
         }
@@ -43,7 +43,7 @@ On app-level build.gradle, add dependency:
 
 ```groovy
 dependencies {
-    implementation 'com.github.psteiger:locationfetcher:5.4'
+    implementation 'com.github.psteiger:locationfetcher:5.6'
 }
 ```
 
@@ -77,8 +77,8 @@ Once instantiated, the component gives you three `Flow`s to collect: one for new
 To manually request location permissions or location settings enablement, you can call the following APIs:
 
 ```kotlin
-suspend fun requestLocationPermissions(): Boolean?
-suspend fun requestEnableLocationSettings(): Boolean
+suspend fun requestLocationPermissions(): LocationFetcher.PermissionStatus
+suspend fun requestEnableLocationSettings(): LocationFetcher.SettingsStatus
 ```
 
 ### Options
