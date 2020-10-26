@@ -151,7 +151,7 @@ internal class LocationFetcherImpl private constructor(
                     permissionRequester?.requirePermissions()
                 }
             }
-            _settingsStatus.value = requestEnableLocationSettings()
+            requestEnableLocationSettings()
             requestLocationUpdates()
         }
     }
@@ -161,8 +161,11 @@ internal class LocationFetcherImpl private constructor(
         stopRequestingLocationUpdates()
     }
 
-    override suspend fun requestLocationPermissions(): Boolean =
-        permissionRequester?.requirePermissions() ?: false
+    override suspend fun requestLocationPermissions(): Boolean? {
+        val result = permissionRequester?.requirePermissions()
+        _permissionStatus.value = result
+        return result
+    }
 
     override suspend fun requestEnableLocationSettings(): Boolean {
         logd("checkSettings")
@@ -176,6 +179,7 @@ internal class LocationFetcherImpl private constructor(
             taskResult.getResult(ApiException::class.java)
             // All location settings are satisfied. The client can initialize location
             logd("checkSettings: Satisfied.")
+            _settingsStatus.value = true
             return true
         } catch (e: ApiException) {
             logd("checkSettings: Not satisfied. Status code: ${e.statusCode}.", e)
@@ -191,15 +195,18 @@ internal class LocationFetcherImpl private constructor(
                                     "${config.requestEnableLocationSettings}"
                         )
                         if (resolutionResolver == null || !config.requestEnableLocationSettings) {
+                            _settingsStatus.value = false
                             return false
                         }
                         val req = IntentSenderRequest.Builder(resolvable.resolution).build()
-                        val result = resolutionResolver.request(req)
-                        return when (val code = result.resultCode) {
+                        val reqResult = resolutionResolver.request(req)
+                        val result = when (val code = reqResult.resultCode) {
                             Activity.RESULT_OK -> true
                             Activity.RESULT_CANCELED -> false
                             else -> false.also { logd("Unknown result code: $code") }
                         }
+                        _settingsStatus.value = result
+                        return result
                     } catch (e: IntentSender.SendIntentException) {
                         logd("checkSettings: SendIntentException", e)
                     } catch (e: ClassCastException) {
@@ -211,6 +218,7 @@ internal class LocationFetcherImpl private constructor(
         } catch (e: Exception) {
             logd("checkSettings: An unknown exception happened", e)
         }
+        _settingsStatus.value = false
         return false
     }
 
