@@ -17,6 +17,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.freelapp.libs.locationfetcher.LocationFetcher
+import com.freelapp.libs.locationfetcher.impl.util.PermissionChecker
 import com.freelapp.libs.locationfetcher.impl.util.PermissionRequester
 import com.freelapp.libs.locationfetcher.impl.util.ResolutionResolver
 import com.google.android.gms.common.api.ApiException
@@ -41,6 +42,7 @@ internal class LocationFetcherImpl private constructor(
     private val locationManager: LocationManager,
     private val settingsClient: SettingsClient,
     private val config: LocationFetcher.Config,
+    private val permissionChecker: PermissionChecker,
     private val resolutionResolver: ResolutionResolver? = null,
     private val permissionRequester: PermissionRequester? = null,
 ) : LocationFetcher, DefaultLifecycleObserver {
@@ -74,6 +76,7 @@ internal class LocationFetcherImpl private constructor(
         ContextCompat.getSystemService(activity, LocationManager::class.java) as LocationManager,
         LocationServices.getSettingsClient(activity),
         config,
+        PermissionChecker(activity, LOCATION_PERMISSIONS),
         ResolutionResolver(activity),
         PermissionRequester(activity, LOCATION_PERMISSIONS)
     )
@@ -86,16 +89,17 @@ internal class LocationFetcherImpl private constructor(
         LocationServices.getFusedLocationProviderClient(context),
         ContextCompat.getSystemService(context, LocationManager::class.java) as LocationManager,
         LocationServices.getSettingsClient(context),
-        config
+        config,
+        PermissionChecker(context, LOCATION_PERMISSIONS)
     )
 
     private val _location = MutableStateFlow<Location?>(null)
-    private val _permissionStatus = MutableStateFlow(false)
-    private val _settingsStatus = MutableStateFlow(false)
+    private val _permissionStatus = MutableStateFlow<Boolean?>(null)
+    private val _settingsStatus = MutableStateFlow<Boolean?>(null)
 
     override val location: StateFlow<Location?> = _location.asStateFlow()
-    override val permissionStatus: StateFlow<Boolean> = _permissionStatus.asStateFlow()
-    override val settingsStatus: StateFlow<Boolean> = _settingsStatus.asStateFlow()
+    override val permissionStatus: StateFlow<Boolean?> = _permissionStatus.asStateFlow()
+    override val settingsStatus: StateFlow<Boolean?> = _settingsStatus.asStateFlow()
 
     private val locationListener: LocationListener = object : LocationListener {
         override fun onLocationChanged(location: Location) {
@@ -120,8 +124,12 @@ internal class LocationFetcherImpl private constructor(
     override fun onStart(owner: LifecycleOwner) {
         super.onStart(owner)
         owner.lifecycleScope.launch {
-            _permissionStatus.value = permissionRequester?.requirePermissions() ?: false
-            _settingsStatus.value = checkSettings()
+            _permissionStatus.value = permissionChecker.hasPermissions().also {
+                if (!it && config.requestLocationPermissions) {
+                    permissionRequester?.requirePermissions()
+                }
+            }
+            _settingsStatus.value = requestEnableLocationSettings()
             requestLocationUpdates()
         }
     }
@@ -129,6 +137,59 @@ internal class LocationFetcherImpl private constructor(
     override fun onStop(owner: LifecycleOwner) {
         super.onStop(owner)
         stopRequestingLocationUpdates()
+    }
+
+    override suspend fun requestLocationPermissions(): Boolean =
+        permissionRequester?.requirePermissions() ?: false
+
+    override suspend fun requestEnableLocationSettings(): Boolean {
+        logd("checkSettings")
+        val request = LocationSettingsRequest.Builder()
+            .addLocationRequest(locationRequest)
+            .build()
+        val taskResult = settingsClient
+            .checkLocationSettings(request)
+            .awaitTaskResult()
+        try {
+            taskResult.getResult(ApiException::class.java)
+            // All location settings are satisfied. The client can initialize location
+            logd("checkSettings: Satisfied.")
+            return true
+        } catch (e: ApiException) {
+            logd("checkSettings: Not satisfied. Status code: ${e.statusCode}.", e)
+            when (e.statusCode) {
+                LocationSettingsStatusCodes.RESOLUTION_REQUIRED -> {
+                    logd("checkSettings: Resolution required")
+                    try {
+                        // Cast to a resolvable exception.
+                        val resolvable = e as ResolvableApiException
+                        logd(
+                            "checkSettings: Resolution possible with $resolutionResolver." +
+                                    " config.requestLocationSettingEnablement=" +
+                                    "${config.requestLocationSettingEnablement}"
+                        )
+                        if (resolutionResolver == null || !config.requestLocationSettingEnablement) {
+                            return false
+                        }
+                        val req = IntentSenderRequest.Builder(resolvable.resolution).build()
+                        val result = resolutionResolver.request(req)
+                        return when (val code = result.resultCode) {
+                            Activity.RESULT_OK -> true
+                            Activity.RESULT_CANCELED -> false
+                            else -> false.also { logd("Unknown result code: $code") }
+                        }
+                    } catch (e: IntentSender.SendIntentException) {
+                        logd("checkSettings: SendIntentException", e)
+                    } catch (e: ClassCastException) {
+                        logd("checkSettings: ClassCastException", e)
+                        // Ignore, should be an impossible error.
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            logd("checkSettings: An unknown exception happened", e)
+        }
+        return false
     }
 
     private fun Location.isValid(): Boolean {
@@ -207,49 +268,6 @@ internal class LocationFetcherImpl private constructor(
         } catch (e: IllegalArgumentException) { // provider doesn't exist
             logd("stopRequestingLocationUpdates: Couldn't stop requesting location updates", e)
         }
-    }
-
-    private suspend fun checkSettings(): Boolean {
-        logd("checkSettings")
-        val request = LocationSettingsRequest.Builder()
-            .addLocationRequest(locationRequest)
-            .build()
-        val taskResult = settingsClient
-            .checkLocationSettings(request)
-            .awaitTaskResult()
-        try {
-            taskResult.getResult(ApiException::class.java)
-            // All location settings are satisfied. The client can initialize location
-            logd("checkSettings: Satisfied.")
-            return true
-        } catch (e: ApiException) {
-            logd("checkSettings: Not satisfied. Status code: ${e.statusCode}.", e)
-            when (e.statusCode) {
-                LocationSettingsStatusCodes.RESOLUTION_REQUIRED -> {
-                    logd("checkSettings: Resolution required")
-
-                    try {
-                        // Cast to a resolvable exception.
-                        val resolvable = e as ResolvableApiException
-                        logd("checkSettings: Requesting resolution with $resolutionResolver.")
-                        if (resolutionResolver == null) return false
-                        val req = IntentSenderRequest.Builder(resolvable.resolution).build()
-                        val result = resolutionResolver.request(req)
-                        return when (val code = result.resultCode) {
-                            Activity.RESULT_OK -> true
-                            Activity.RESULT_CANCELED -> false
-                            else -> false.also { logd("Unknown result code: $code") }
-                        }
-                    } catch (e: IntentSender.SendIntentException) {
-                        logd("checkSettings: SendIntentException", e)
-                    } catch (e: ClassCastException) {
-                        logd("checkSettings: ClassCastException", e)
-                        // Ignore, should be an impossible error.
-                    }
-                }
-            }
-        }
-        return false
     }
 
     private fun LocationListener.asFusedLocationClientCallback() = object : LocationCallback() {

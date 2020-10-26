@@ -16,10 +16,10 @@ class MyActivity : AppCompatActivity() {
             location.collect { location: Location? ->
                 // New location received.
             }
-            settingsStatus.collect { enabled: Boolean ->
+            settingsStatus.collect { enabled: Boolean? ->
                 // Location got enabled or disabled in device settings.
             }
-            permissionStatus.collect { allowed: Boolean ->
+            permissionStatus.collect { allowed: Boolean? ->
                 // App got allowed or disallowed to know the device's location.
             }
         }
@@ -33,6 +33,7 @@ The service uses GPS and network by default and needs `ACCESS_FINE_LOCATION` and
 
 You can personalize your `LocationRequest` to suit your needs.
 
+If the device's location services are disabled, or if your app is not allowed location permissions by the user, this library can (optionally) automatically ask the user to enable location services in settings or to allow the necessary permissions.
 
 ## Installation
 
@@ -42,7 +43,7 @@ On app-level build.gradle, add dependency:
 
 ```groovy
 dependencies {
-    implementation 'com.github.psteiger:locationfetcher:5.0'
+    implementation 'com.github.psteiger:locationfetcher:5.1'
 }
 ```
 
@@ -69,7 +70,7 @@ LocationFetcher.create(this)
 
 There are two method signatures: `LocationFetcher.create(Context)` and `LocationFetcher.create(FragmentActivity)`
 
-If `LocationFetcher` is created with a `FragmentActivity`, it will be able to show dialogs to request the user to enable permission in Android settings and to allow the app to obtain the device's location. If `LocationFetcher` is created with a non-`FragmentActivity` `Context`, we won't be able to show dialogs.
+If `LocationFetcher` is created with a `FragmentActivity`, it will be able to show dialogs to request the user to enable permission in Android settings and to allow the app to obtain the device's location. If `LocationFetcher` is created with a non-`FragmentActivity` `Context`, it won't be able to show dialogs.
 
 Once instantiated, the component gives you three `Flow`s to collect: one for new locations, one for settings status, and one for location permissions status.
 
@@ -89,6 +90,8 @@ LocationFetcher.create(this) {
         LocationRequest.Provider.Network, 
         LocationRequest.Provider.Fused
     )
+    requestLocationPermissions = true       // no effect if built with Context
+    requestLocationSettingEnablement = true // no effect if built with Context
     debug = true
 }
 ```
