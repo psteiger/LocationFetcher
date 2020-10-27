@@ -49,6 +49,9 @@ internal class LocationFetcherImpl private constructor(
             Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.ACCESS_FINE_LOCATION
         )
+        private val LOCATION = MutableStateFlow<Location?>(null)
+        private val PERMISSION_STATUS = MutableStateFlow(LocationFetcher.PermissionStatus.UNKNOWN)
+        private val SETTINGS_STATUS = MutableStateFlow(LocationFetcher.SettingsStatus.UNKNOWN)
     }
 
     private val locationRequest: LocationRequest = LocationRequest().apply {
@@ -89,21 +92,17 @@ internal class LocationFetcherImpl private constructor(
         PermissionChecker(context, LOCATION_PERMISSIONS)
     )
 
-    private val _location = MutableStateFlow<Location?>(null)
-    private val _permissionStatus = MutableStateFlow(LocationFetcher.PermissionStatus.UNKNOWN)
-    private val _settingsStatus = MutableStateFlow(LocationFetcher.SettingsStatus.UNKNOWN)
-
-    override val location: StateFlow<Location?> = _location.asStateFlow()
+    override val location: StateFlow<Location?> = LOCATION.asStateFlow()
     override val permissionStatus: StateFlow<LocationFetcher.PermissionStatus> =
-        _permissionStatus.asStateFlow()
+        PERMISSION_STATUS.asStateFlow()
     override val settingsStatus: StateFlow<LocationFetcher.SettingsStatus> =
-        _settingsStatus.asStateFlow()
+        SETTINGS_STATUS.asStateFlow()
 
     private val locationListener: LocationListener = object : LocationListener {
         override fun onLocationChanged(location: Location) {
             logd("LocationListener: Received update $location")
             if (location.isValid()) {
-                _location.value = location
+                LOCATION.value = location
                 lastUpdateTimestamp = SystemClock.elapsedRealtime()
             }
         }
@@ -149,14 +148,14 @@ internal class LocationFetcherImpl private constructor(
     override fun onStart(owner: LifecycleOwner) {
         super.onStart(owner)
         owner.lifecycleScope.launch {
-            _permissionStatus.value = permissionChecker.hasPermissions().also {
+            PERMISSION_STATUS.value = permissionChecker.hasPermissions().also {
                 if (it != LocationFetcher.PermissionStatus.ALLOWED &&
                     config.requestLocationPermissions
                 ) {
                     permissionRequester?.requirePermissions()
                 }
             }
-            _settingsStatus.value = checkLocationSettingsEnabled().also {
+            SETTINGS_STATUS.value = checkLocationSettingsEnabled().also {
                 if (it != LocationFetcher.SettingsStatus.ENABLED &&
                     config.requestEnableLocationSettings
                 ) {
@@ -175,7 +174,7 @@ internal class LocationFetcherImpl private constructor(
     override suspend fun requestLocationPermissions(): LocationFetcher.PermissionStatus {
         val result = permissionRequester?.requirePermissions()
             ?: LocationFetcher.PermissionStatus.UNKNOWN
-        _permissionStatus.value = result
+        PERMISSION_STATUS.value = result
         return result
     }
 
@@ -191,7 +190,7 @@ internal class LocationFetcherImpl private constructor(
             taskResult.getResult(ApiException::class.java)
             // All location settings are satisfied. The client can initialize location
             logd("checkSettings: Satisfied.")
-            _settingsStatus.value = LocationFetcher.SettingsStatus.ENABLED
+            SETTINGS_STATUS.value = LocationFetcher.SettingsStatus.ENABLED
             return LocationFetcher.SettingsStatus.ENABLED
         } catch (e: ApiException) {
             logd("checkSettings: Not satisfied. Status code: ${e.statusCode}.", e)
@@ -201,10 +200,10 @@ internal class LocationFetcherImpl private constructor(
                     // Cast to a resolvable exception.
                     val resolvable = e as ResolvableApiException
                     logd("checkSettings: Resolution possible with $resolutionResolver.")
-                    if (resolutionResolver == null) return _settingsStatus.value
+                    if (resolutionResolver == null) return SETTINGS_STATUS.value
                     val req = IntentSenderRequest.Builder(resolvable.resolution).build()
                     val result = resolutionResolver.request(req).resultCode.asSettingsStatus()
-                    _settingsStatus.value = result
+                    SETTINGS_STATUS.value = result
                     return result
                 } catch (e: IntentSender.SendIntentException) {
                     logd("checkSettings: SendIntentException", e)
@@ -216,7 +215,7 @@ internal class LocationFetcherImpl private constructor(
         } catch (e: Exception) {
             logd("checkSettings: An unknown exception happened", e)
         }
-        _settingsStatus.value = LocationFetcher.SettingsStatus.DISABLED
+        SETTINGS_STATUS.value = LocationFetcher.SettingsStatus.DISABLED
         return LocationFetcher.SettingsStatus.DISABLED
     }
 
