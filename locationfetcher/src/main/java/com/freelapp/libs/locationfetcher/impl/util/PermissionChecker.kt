@@ -8,7 +8,7 @@ import com.freelapp.libs.locationfetcher.LocationFetcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-class PermissionChecker(
+internal class PermissionChecker(
     private val context: Context,
     private val permissions: Array<String>
 ) {
@@ -16,7 +16,7 @@ class PermissionChecker(
         context.hasPermissions(permissions)
 }
 
-suspend fun Context.hasPermissions(permissions: Array<String>): LocationFetcher.PermissionStatus =
+internal suspend fun Context.hasPermissions(permissions: Array<String>): LocationFetcher.PermissionStatus =
     withContext(Dispatchers.IO) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             LocationFetcher.PermissionStatus.ALLOWED
