@@ -16,7 +16,7 @@ import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
-open class ActivityRequester<I, O, T : ActivityResultContract<I, O>>(
+internal open class ActivityRequester<I, O, T : ActivityResultContract<I, O>>(
     activity: FragmentActivity,
     contract: T
 ) : DefaultLifecycleObserver {
@@ -42,7 +42,7 @@ open class ActivityRequester<I, O, T : ActivityResultContract<I, O>>(
     }
 }
 
-class ResolutionResolver(
+internal class ResolutionResolver(
     activity: FragmentActivity
 ) : ActivityRequester<
         IntentSenderRequest,
@@ -52,7 +52,7 @@ class ResolutionResolver(
     ActivityResultContracts.StartIntentSenderForResult()
 )
 
-class PermissionRequester(
+internal class PermissionRequester(
     private val activity: FragmentActivity,
     private val permissions: Array<String>
 ) : ActivityRequester<
