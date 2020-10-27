@@ -3,27 +3,27 @@ package com.freelapp.libs.locationfetcher.impl.util
 import android.app.Activity
 import com.freelapp.libs.locationfetcher.LocationFetcher
 
-fun Boolean?.asPermissionStatus(): LocationFetcher.PermissionStatus = when (this) {
+internal fun Boolean?.asPermissionStatus(): LocationFetcher.PermissionStatus = when (this) {
     null -> LocationFetcher.PermissionStatus.UNKNOWN
     false -> LocationFetcher.PermissionStatus.DENIED
     true -> LocationFetcher.PermissionStatus.ALLOWED
 }
 
-fun Boolean?.asSettingsStatus(): LocationFetcher.SettingsStatus = when (this) {
+internal fun Boolean?.asSettingsStatus(): LocationFetcher.SettingsStatus = when (this) {
     null -> LocationFetcher.SettingsStatus.UNKNOWN
     false -> LocationFetcher.SettingsStatus.DISABLED
     true -> LocationFetcher.SettingsStatus.ENABLED
 }
 
-typealias ResultCode = Int
+internal typealias ResultCode = Int
 
-fun ResultCode.asSettingsStatus(): LocationFetcher.SettingsStatus = when (this) {
+internal fun ResultCode.asSettingsStatus(): LocationFetcher.SettingsStatus = when (this) {
     Activity.RESULT_OK -> LocationFetcher.SettingsStatus.ENABLED
     Activity.RESULT_CANCELED -> LocationFetcher.SettingsStatus.DISABLED
     else -> LocationFetcher.SettingsStatus.DISABLED
 }
 
-infix fun LocationFetcher.PermissionStatus.or(
+internal infix fun LocationFetcher.PermissionStatus.or(
     other: LocationFetcher.PermissionStatus
 ): LocationFetcher.PermissionStatus =
     if (this == LocationFetcher.PermissionStatus.ALLOWED ||
@@ -37,7 +37,7 @@ infix fun LocationFetcher.PermissionStatus.or(
         LocationFetcher.PermissionStatus.DENIED
     } else LocationFetcher.PermissionStatus.UNKNOWN
 
-infix fun LocationFetcher.PermissionStatus.and(
+internal infix fun LocationFetcher.PermissionStatus.and(
     other: LocationFetcher.PermissionStatus
 ): LocationFetcher.PermissionStatus =
     if (this == LocationFetcher.PermissionStatus.ALLOWED &&
@@ -51,7 +51,7 @@ infix fun LocationFetcher.PermissionStatus.and(
         LocationFetcher.PermissionStatus.UNKNOWN
     } else LocationFetcher.PermissionStatus.DENIED
 
-infix fun LocationFetcher.SettingsStatus.or(
+internal infix fun LocationFetcher.SettingsStatus.or(
     other: LocationFetcher.SettingsStatus
 ): LocationFetcher.SettingsStatus =
     if (this == LocationFetcher.SettingsStatus.ENABLED ||
@@ -65,7 +65,7 @@ infix fun LocationFetcher.SettingsStatus.or(
         LocationFetcher.SettingsStatus.DISABLED
     } else LocationFetcher.SettingsStatus.UNKNOWN
 
-infix fun LocationFetcher.SettingsStatus.and(
+internal infix fun LocationFetcher.SettingsStatus.and(
     other: LocationFetcher.SettingsStatus
 ): LocationFetcher.SettingsStatus =
     if (this == LocationFetcher.SettingsStatus.ENABLED &&
