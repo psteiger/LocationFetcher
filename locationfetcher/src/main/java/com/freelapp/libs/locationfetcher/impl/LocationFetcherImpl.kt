@@ -27,8 +27,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
@@ -126,9 +124,6 @@ internal class LocationFetcherImpl private constructor(
         LocationFetcher.Provider.Fused to false
     )
 
-    private val settingsMutex = Mutex()
-    private val permissionsMutex = Mutex()
-
     override fun onCreate(owner: LifecycleOwner) {
         super.onCreate(owner)
         logd("onCreate")
@@ -165,14 +160,14 @@ internal class LocationFetcherImpl private constructor(
         stopRequestingLocationUpdates()
     }
 
-    override suspend fun requestLocationPermissions(): LocationFetcher.PermissionStatus = permissionsMutex.withLock {
+    override suspend fun requestLocationPermissions(): LocationFetcher.PermissionStatus {
         val result = permissionRequester?.requirePermissions()
             ?: LocationFetcher.PermissionStatus.UNKNOWN
         updatePermissionsStatusFlow(result)
         return result
     }
 
-    override suspend fun requestEnableLocationSettings(): LocationFetcher.SettingsStatus = settingsMutex.withLock {
+    override suspend fun requestEnableLocationSettings(): LocationFetcher.SettingsStatus {
         logd("checkSettings")
         val request = LocationSettingsRequest.Builder()
             .addLocationRequest(locationRequest)
@@ -213,11 +208,11 @@ internal class LocationFetcherImpl private constructor(
         return LocationFetcher.SettingsStatus.DISABLED
     }
 
-    private suspend fun updatePermissionsStatusFlow(permission: LocationFetcher.PermissionStatus) = permissionsMutex.withLock {
+    private fun updatePermissionsStatusFlow(permission: LocationFetcher.PermissionStatus) {
         PERMISSION_STATUS.value = permission
     }
 
-    private suspend fun updateSettingsStatusFlow(permission: LocationFetcher.SettingsStatus) = settingsMutex.withLock {
+    private fun updateSettingsStatusFlow(permission: LocationFetcher.SettingsStatus) {
         SETTINGS_STATUS.value = permission
     }
 
@@ -229,13 +224,13 @@ internal class LocationFetcherImpl private constructor(
         checkLocationSettingsEnabled() != LocationFetcher.SettingsStatus.ENABLED &&
                 config.requestEnableLocationSettings
 
-    private suspend fun checkLocationPermissionsAllowed(): LocationFetcher.PermissionStatus = permissionsMutex.withLock {
+    private suspend fun checkLocationPermissionsAllowed(): LocationFetcher.PermissionStatus {
         val hasPermissions = permissionChecker.hasPermissions()
         updatePermissionsStatusFlow(hasPermissions)
         return hasPermissions
     }
 
-    private suspend fun checkLocationSettingsEnabled(): LocationFetcher.SettingsStatus = settingsMutex.withLock {
+    private suspend fun checkLocationSettingsEnabled(): LocationFetcher.SettingsStatus {
         val request = LocationSettingsRequest.Builder()
             .addLocationRequest(locationRequest)
             .build()
