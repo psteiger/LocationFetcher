@@ -27,6 +27,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
@@ -60,6 +62,7 @@ internal class LocationFetcherImpl private constructor(
         maxWaitTime = config.maxWaitTime
         priority = config.priority
         smallestDisplacement = config.smallestDisplacement
+        numUpdates = config.numUpdates
     }
 
     init {
@@ -123,6 +126,9 @@ internal class LocationFetcherImpl private constructor(
         LocationFetcher.Provider.Fused to false
     )
 
+    private val settingsMutex = Mutex()
+    private val permissionsMutex = Mutex()
+
     override fun onCreate(owner: LifecycleOwner) {
         super.onCreate(owner)
         logd("onCreate")
@@ -148,21 +154,9 @@ internal class LocationFetcherImpl private constructor(
     override fun onStart(owner: LifecycleOwner) {
         super.onStart(owner)
         owner.lifecycleScope.launch {
-            PERMISSION_STATUS.value = permissionChecker.hasPermissions().also {
-                if (it != LocationFetcher.PermissionStatus.ALLOWED &&
-                    config.requestLocationPermissions
-                ) {
-                    permissionRequester?.requirePermissions()
-                }
-            }
-            SETTINGS_STATUS.value = checkLocationSettingsEnabled().also {
-                if (it != LocationFetcher.SettingsStatus.ENABLED &&
-                    config.requestEnableLocationSettings
-                ) {
-                    requestEnableLocationSettings()
-                }
-                requestLocationUpdates()
-            }
+            if (shouldRequestLocationPermissions()) requestLocationPermissions()
+            if (shouldRequestEnableLocationSettings()) requestEnableLocationSettings()
+            requestLocationUpdates()
         }
     }
 
@@ -171,14 +165,14 @@ internal class LocationFetcherImpl private constructor(
         stopRequestingLocationUpdates()
     }
 
-    override suspend fun requestLocationPermissions(): LocationFetcher.PermissionStatus {
+    override suspend fun requestLocationPermissions(): LocationFetcher.PermissionStatus = permissionsMutex.withLock {
         val result = permissionRequester?.requirePermissions()
             ?: LocationFetcher.PermissionStatus.UNKNOWN
-        PERMISSION_STATUS.value = result
+        updatePermissionsStatusFlow(result)
         return result
     }
 
-    override suspend fun requestEnableLocationSettings(): LocationFetcher.SettingsStatus {
+    override suspend fun requestEnableLocationSettings(): LocationFetcher.SettingsStatus = settingsMutex.withLock {
         logd("checkSettings")
         val request = LocationSettingsRequest.Builder()
             .addLocationRequest(locationRequest)
@@ -190,7 +184,7 @@ internal class LocationFetcherImpl private constructor(
             taskResult.getResult(ApiException::class.java)
             // All location settings are satisfied. The client can initialize location
             logd("checkSettings: Satisfied.")
-            SETTINGS_STATUS.value = LocationFetcher.SettingsStatus.ENABLED
+            updateSettingsStatusFlow(LocationFetcher.SettingsStatus.ENABLED)
             return LocationFetcher.SettingsStatus.ENABLED
         } catch (e: ApiException) {
             logd("checkSettings: Not satisfied. Status code: ${e.statusCode}.", e)
@@ -203,7 +197,7 @@ internal class LocationFetcherImpl private constructor(
                     if (resolutionResolver == null) return SETTINGS_STATUS.value
                     val req = IntentSenderRequest.Builder(resolvable.resolution).build()
                     val result = resolutionResolver.request(req).resultCode.asSettingsStatus()
-                    SETTINGS_STATUS.value = result
+                    updateSettingsStatusFlow(result)
                     return result
                 } catch (e: IntentSender.SendIntentException) {
                     logd("checkSettings: SendIntentException", e)
@@ -215,11 +209,33 @@ internal class LocationFetcherImpl private constructor(
         } catch (e: Exception) {
             logd("checkSettings: An unknown exception happened", e)
         }
-        SETTINGS_STATUS.value = LocationFetcher.SettingsStatus.DISABLED
+        updateSettingsStatusFlow(LocationFetcher.SettingsStatus.DISABLED)
         return LocationFetcher.SettingsStatus.DISABLED
     }
 
-    private suspend fun checkLocationSettingsEnabled(): LocationFetcher.SettingsStatus {
+    private suspend fun updatePermissionsStatusFlow(permission: LocationFetcher.PermissionStatus) = permissionsMutex.withLock {
+        PERMISSION_STATUS.value = permission
+    }
+
+    private suspend fun updateSettingsStatusFlow(permission: LocationFetcher.SettingsStatus) = settingsMutex.withLock {
+        SETTINGS_STATUS.value = permission
+    }
+
+    private suspend fun shouldRequestLocationPermissions() =
+        checkLocationPermissionsAllowed() != LocationFetcher.PermissionStatus.ALLOWED &&
+                config.requestLocationPermissions
+
+    private suspend fun shouldRequestEnableLocationSettings() =
+        checkLocationSettingsEnabled() != LocationFetcher.SettingsStatus.ENABLED &&
+                config.requestEnableLocationSettings
+
+    private suspend fun checkLocationPermissionsAllowed(): LocationFetcher.PermissionStatus = permissionsMutex.withLock {
+        val hasPermissions = permissionChecker.hasPermissions()
+        updatePermissionsStatusFlow(hasPermissions)
+        return hasPermissions
+    }
+
+    private suspend fun checkLocationSettingsEnabled(): LocationFetcher.SettingsStatus = settingsMutex.withLock {
         val request = LocationSettingsRequest.Builder()
             .addLocationRequest(locationRequest)
             .build()
@@ -230,8 +246,10 @@ internal class LocationFetcherImpl private constructor(
             taskResult.getResult(ApiException::class.java)
             // All location settings are satisfied. The client can initialize location
             logd("checkLocationSettingsEnabled: Satisfied.")
+            updateSettingsStatusFlow(LocationFetcher.SettingsStatus.ENABLED)
             LocationFetcher.SettingsStatus.ENABLED
         }.getOrElse {
+            updateSettingsStatusFlow(LocationFetcher.SettingsStatus.DISABLED)
             LocationFetcher.SettingsStatus.DISABLED
         }
     }

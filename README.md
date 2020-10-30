@@ -43,7 +43,7 @@ On app-level build.gradle, add dependency:
 
 ```groovy
 dependencies {
-    implementation 'com.github.psteiger:locationfetcher:5.10'
+    implementation 'com.github.psteiger:locationfetcher:5.11'
 }
 ```
 
@@ -85,6 +85,8 @@ suspend fun requestEnableLocationSettings(): LocationFetcher.SettingsStatus
 
 `LocationFetcher` supports the following configurations for location fetching when creating the component:
 
+(Note: for GPS and Network providers, only `interval` and `smallestDisplacement` are used. If you want to use all options, limit providers to `LocationRequest.Provider.Fused`)
+
 ```kotlin
 LocationFetcher.create(this) {
     fastestInterval = 5000
@@ -97,6 +99,7 @@ LocationFetcher.create(this) {
         LocationRequest.Provider.Network, 
         LocationRequest.Provider.Fused
     )
+    numUpdates = Int.MAX_VALUE
     requestLocationPermissions = true    // no effect if built with Context
     requestEnableLocationSettings = true // no effect if built with Context
     debug = true
