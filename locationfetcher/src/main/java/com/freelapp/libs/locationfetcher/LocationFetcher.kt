@@ -38,6 +38,7 @@ interface LocationFetcher {
         var maxWaitTime: Long = locationRequest.maxWaitTime,
         var priority: Int = locationRequest.priority,
         var smallestDisplacement: Float = locationRequest.smallestDisplacement,
+        var numUpdates: Int = locationRequest.numUpdates,
         var providers: List<Provider> = listOf(Provider.Fused, Provider.Network, Provider.GPS),
         var requestLocationPermissions: Boolean = true,
         var requestEnableLocationSettings: Boolean = true,
