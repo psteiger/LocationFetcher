@@ -22,10 +22,10 @@ internal suspend fun Context.hasPermissions(permissions: Array<String>): Locatio
             LocationFetcher.PermissionStatus.ALLOWED
         } else {
             permissions.all {
-                (ActivityCompat.checkSelfPermission(
+                ActivityCompat.checkSelfPermission(
                     this@hasPermissions,
                     it
-                ) == PackageManager.PERMISSION_GRANTED)
+                ) == PackageManager.PERMISSION_GRANTED
             }.asPermissionStatus()
         }
     }
