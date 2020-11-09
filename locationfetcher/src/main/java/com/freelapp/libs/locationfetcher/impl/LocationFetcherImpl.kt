@@ -63,10 +63,6 @@ internal class LocationFetcherImpl private constructor(
         numUpdates = config.numUpdates
     }
 
-    init {
-        lifecycleOwner.lifecycle.addObserver(this@LocationFetcherImpl)
-    }
-
     constructor(
         activity: FragmentActivity,
         config: LocationFetcher.Config
@@ -357,5 +353,9 @@ internal class LocationFetcherImpl private constructor(
     @Suppress("NOTHING_TO_INLINE")
     private inline fun logd(msg: String, e: Throwable? = null) {
         if (config.debug) Log.d(TAG, msg, e)
+    }
+
+    init {
+        lifecycleOwner.lifecycle.addObserver(this)
     }
 }

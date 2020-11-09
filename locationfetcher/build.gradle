@@ -22,7 +22,7 @@ android {
 }
 
 dependencies {
-    def coroutinesVersion = '1.4.0'
+    def coroutinesVersion = '1.4.1'
     def lifecycleVersion = '2.3.0-beta01'
 
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
