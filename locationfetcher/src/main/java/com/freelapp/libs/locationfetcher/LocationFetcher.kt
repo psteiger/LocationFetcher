@@ -16,13 +16,23 @@ interface LocationFetcher {
 
         fun create(
             activity: FragmentActivity,
+            config: Config
+        ): LocationFetcher = LocationFetcherImpl(activity, config)
+
+        fun create(
+            context: Context,
+            config: Config
+        ): LocationFetcher = LocationFetcherImpl(context, config)
+
+        fun create(
+            activity: FragmentActivity,
             config: Config.() -> Unit = { }
-        ): LocationFetcher = LocationFetcherImpl(activity, Config().apply { config() })
+        ): LocationFetcher = create(activity, Config().apply { config() })
 
         fun create(
             context: Context,
             config: Config.() -> Unit = { }
-        ): LocationFetcher = LocationFetcherImpl(context, Config().apply { config() })
+        ): LocationFetcher = create(context, Config().apply { config() })
     }
 
     val location: StateFlow<Location?>

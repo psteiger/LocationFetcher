@@ -43,7 +43,7 @@ On app-level build.gradle, add dependency:
 
 ```groovy
 dependencies {
-    implementation 'com.github.psteiger:locationfetcher:5.15'
+    implementation 'com.github.psteiger:locationfetcher:5.16'
 }
 ```
 
@@ -104,4 +104,26 @@ LocationFetcher.create(this) {
     requestEnableLocationSettings = true // no effect if built with Context
     debug = true
 }
+```
+
+Alternatively, you might prefer to create a standalone configuration instance. It is useful, for example, when sharing a common configuration between multiple `LocationFetcher` instances:
+
+```kotlin
+val config = LocationFetcher.config(
+    fastestInterval = 5000,
+    interval = 15000,
+    maxWaitTime = 100000,
+    priority = LocationRequest.PRIORITY_HIGH_ACCURACY,
+    smallestDisplacement = 50f,
+    providers = listOf(
+        LocationRequest.Provider.GPS,
+        LocationRequest.Provider.Network,
+        LocationRequest.Provider.Fused
+    ),
+    numUpdates = Int.MAX_VALUE,
+    requestLocationPermissions = true,    // no effect if built with Context
+    requestEnableLocationSettings = true, // no effect if built with Context
+    debug = true
+)
+LocationFetcher.create(this, config)
 ```
