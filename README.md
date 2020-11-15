@@ -29,7 +29,7 @@ class MyActivity : AppCompatActivity() {
 
 This library provides a simple location component, `LocationFetcher`, requiring only either an `FragmentActivity` instance or a `Context` instance, to make your Android app location-aware.
 
-The service uses GPS and network by default and needs `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`.
+The service uses GPS and network as location providers by default and thus the app needs to declare use of the `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION` permissions on its `AndroidManifest.xml`.
 
 You can personalize your `LocationRequest` to suit your needs.
 
@@ -68,7 +68,7 @@ On any `FragmentActivity` or `Context` class, you can instantiate a `LocationFet
 LocationFetcher.create(this)
 ```
 
-There are two method signatures: `LocationFetcher.create(Context)` and `LocationFetcher.create(FragmentActivity)`
+There are two `LocationFetcher.create()` method signatures: `LocationFetcher.create(Context)` and `LocationFetcher.create(FragmentActivity)`
 
 If `LocationFetcher` is created with a `FragmentActivity`, it will be able to show dialogs to request the user to enable permission in Android settings and to allow the app to obtain the device's location. If `LocationFetcher` is created with a non-`FragmentActivity` `Context`, it won't be able to show dialogs.
 
