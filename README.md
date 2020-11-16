@@ -12,15 +12,21 @@ class MyActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        lifecycleScope.launchWhenStarted {
-            location.collect { location: Location? ->
-                // New location received.
+        with (lifecycleScope) {
+            launchWhenStarted {
+                location.collect { location: Location? ->
+                    // New location received.
+                }
             }
-            settingsStatus.collect { enabled: LocationFetcher.SettingsStatus ->
-                // Location got enabled or disabled in device settings.
+            launchWhenStarted {
+                settingsStatus.collect { enabled: LocationFetcher.SettingsStatus ->
+                    // Location got enabled or disabled in device settings.
+                }
             }
-            permissionStatus.collect { allowed: LocationFetcher.PermissionStatus ->
-                // App got allowed or disallowed to know the device's location.
+            launchWhenStarted {
+                permissionStatus.collect { allowed: LocationFetcher.PermissionStatus ->
+                    // App got allowed or disallowed to know the device's location.
+                }
             }
         }
     }
