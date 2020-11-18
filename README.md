@@ -1,5 +1,7 @@
 # LocationFetcher
 
+[![](https://jitpack.io/v/psteiger/LocationFetcher.svg)](https://jitpack.io/#psteiger/LocationFetcher)
+
 Simple location fetcher for Android Apps built with Kotlin and Coroutines.
 
 Building location-aware Android apps can be a bit tricky. This library makes it as simple as:
