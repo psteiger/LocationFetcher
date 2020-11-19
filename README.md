@@ -57,7 +57,7 @@ allprojects {
 }
 ```
 
-On app-level build.gradle, add dependency:
+On app-level `build.gradle`, add dependency:
 
 ```groovy
 dependencies {
