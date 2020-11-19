@@ -47,6 +47,16 @@ If the device's location services are disabled, or if your app is not allowed lo
 
 ### Using Gradle
 
+On project-level `build.gradle`, add [Jitpack](https://jitpack.io/) repository:
+
+```groovy
+allprojects {
+  repositories {
+    maven { url 'https://jitpack.io' }
+  }
+}
+```
+
 On app-level build.gradle, add dependency:
 
 ```groovy
