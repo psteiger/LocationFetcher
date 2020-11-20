@@ -14,22 +14,18 @@ class MyActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        with (lifecycleScope) {
-            launchWhenStarted {
-                locationFetcher.location.collect { location: Location? ->
-                    // New location received.
-                }
-            }
-            launchWhenStarted {
-                locationFetcher.settingsStatus.collect { enabled: LocationFetcher.SettingsStatus ->
-                    // Location got enabled or disabled in device settings.
-                }
-            }
-            launchWhenStarted {
-                locationFetcher.permissionStatus.collect { allowed: LocationFetcher.PermissionStatus ->
-                    // App got allowed or disallowed to know the device's location.
-                }
-            }
+        with (locationFetcher) {
+            location
+                .onEach { /* Location received */ }
+                .launchIn(lifecycleScope)
+        
+            settingsStatus
+                .onEach { /* Location got enabled or disabled in device settings */ }
+                .launchIn(lifecycleScope)
+            
+            permissionStatus
+                .onEach { /* App got allowed or disallowed to access the device's location. */ }
+                .launchIn(lifecycleScope)
         }
     }
 }
