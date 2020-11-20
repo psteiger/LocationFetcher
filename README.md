@@ -24,7 +24,7 @@ class MyActivity : AppCompatActivity() {
                 .launchIn(lifecycleScope)
             
             permissionStatus
-                .onEach { /* App got allowed or disallowed to access the device's location. */ }
+                .onEach { /* App allowed or disallowed to access the device's location. */ }
                 .launchIn(lifecycleScope)
         }
     }
