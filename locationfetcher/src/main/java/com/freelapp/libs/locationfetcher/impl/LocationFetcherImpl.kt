@@ -149,6 +149,9 @@ internal class LocationFetcherImpl private constructor(
 
     override fun onStart(owner: LifecycleOwner) {
         super.onStart(owner)
+        // Note: On older Android versions, there is no concept of onResume/onPause, so a dialog
+        // is shown repeatedly (onStop called when dialog is showing, onStart called when it is
+        // closed).
         owner.lifecycleScope.launch {
             if (shouldRequestLocationPermissions()) requestLocationPermissions()
             if (shouldRequestEnableLocationSettings()) requestEnableLocationSettings()
