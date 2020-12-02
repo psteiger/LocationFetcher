@@ -9,14 +9,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 internal class PermissionChecker(
-    private val context: Context,
-    private val permissions: Array<String>
+    context: Context,
+    private val permissions: Array<String>,
+    private val applicationContext: Context = context.applicationContext
 ) {
     suspend fun hasPermissions(): LocationFetcher.PermissionStatus =
-        context.hasPermissions(permissions)
+        applicationContext.hasPermissions(permissions)
 }
 
-internal suspend fun Context.hasPermissions(permissions: Array<String>): LocationFetcher.PermissionStatus =
+internal suspend fun Context.hasPermissions(
+    permissions: Array<String>
+): LocationFetcher.PermissionStatus =
     withContext(Dispatchers.IO) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             LocationFetcher.PermissionStatus.ALLOWED
