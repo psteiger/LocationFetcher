@@ -57,7 +57,7 @@ On app-level `build.gradle`, add dependency:
 
 ```groovy
 dependencies {
-    implementation 'com.github.psteiger:locationfetcher:5.19'
+    implementation 'com.github.psteiger:locationfetcher:5.20'
 }
 ```
 
