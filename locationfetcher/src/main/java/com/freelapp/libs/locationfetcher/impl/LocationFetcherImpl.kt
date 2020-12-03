@@ -98,7 +98,6 @@ internal class LocationFetcherImpl private constructor(
                     LOCATION.value = it
                     lastUpdateTimestamp.set(SystemClock.elapsedRealtime())
                 }
-                .flowOn(Dispatchers.Default)
                 .observeIn(owner)
         }
 
