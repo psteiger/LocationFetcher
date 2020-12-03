@@ -2,6 +2,7 @@ package com.freelapp.libs.locationfetcher.impl.ktx
 
 import android.location.Location
 import android.location.LocationManager
+import android.util.Log
 import com.freelapp.libs.locationfetcher.LocationFetcher
 import com.freelapp.libs.locationfetcher.impl.listener.LocationCallbackImpl
 import com.freelapp.libs.locationfetcher.impl.listener.LocationListenerImpl
@@ -26,8 +27,12 @@ internal fun LocationManager.locationFlowOf(
         .filter { it == LocationFetcher.PermissionStatus.ALLOWED }
         .flatMapLatest {
             callbackFlow {
-                val listener = LocationListenerImpl { runCatching { offer(it) } }
+                val listener = LocationListenerImpl {
+                    Log.d("LocationFetcher", "LocationManager.locationFlowOf offering location $it")
+                    runCatching { offer(it) }
+                }
                 try {
+                    Log.d("LocationFetcher", "LocationManager.locationFlowOf Adding callback")
                     requestLocationUpdates(
                         provider.value,
                         locationRequest.interval,
@@ -35,9 +40,13 @@ internal fun LocationManager.locationFlowOf(
                         listener
                     )
                 } catch (e: SecurityException) {
+                    Log.d("LocationFetcher", "LocationManager.locationFlowOf SecurityException", e)
                     cancel(CancellationException(e))
                 }
-                awaitClose { removeUpdates(listener) }
+                awaitClose {
+                    Log.d("LocationFetcher", "LocationManager.locationFlowOf Removing callback")
+                    removeUpdates(listener)
+                }
             }
         }
 
@@ -49,13 +58,21 @@ internal fun FusedLocationProviderClient.locationFlowOf(
         .filter { it == LocationFetcher.PermissionStatus.ALLOWED }
         .flatMapLatest {
             callbackFlow {
-                val callback = LocationCallbackImpl { runCatching { offer(it) } }
+                val callback = LocationCallbackImpl {
+                    Log.d("LocationFetcher", "FusedLocationProviderClient.locationFlowOf offering location $it")
+                    runCatching { offer(it) }
+                }
                 try {
+                    Log.d("LocationFetcher", "FusedLocationProviderClient.locationFlowOf Adding callback")
                     requestLocationUpdates(locationRequest, callback, null)
                 } catch (e: SecurityException) {
+                    Log.d("LocationFetcher", "FusedLocationProviderClient.locationFlowOf SecurityException", e)
                     cancel(CancellationException(e))
                 }
-                awaitClose { removeLocationUpdates(callback) }
+                awaitClose {
+                    Log.d("LocationFetcher", "FusedLocationProviderClient.locationFlowOf Removing callback")
+                    removeLocationUpdates(callback)
+                }
             }
         }
 
