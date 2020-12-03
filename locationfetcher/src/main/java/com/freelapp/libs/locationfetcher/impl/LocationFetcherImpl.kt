@@ -20,6 +20,8 @@ import com.freelapp.libs.locationfetcher.impl.singleton.GlobalState.LOCATION
 import com.freelapp.libs.locationfetcher.impl.singleton.GlobalState.PERMISSION_STATUS
 import com.freelapp.libs.locationfetcher.impl.singleton.GlobalState.SETTINGS_STATUS
 import com.freelapp.libs.locationfetcher.impl.util.PermissionChecker
+import com.freelapp.libs.locationfetcher.impl.util.PermissionRequester
+import com.freelapp.libs.locationfetcher.impl.util.ResolutionResolver
 import com.freelapp.libs.locationfetcher.impl.util.asSettingsStatus
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.ResolvableApiException
@@ -40,11 +42,13 @@ import kotlin.coroutines.suspendCoroutine
 internal class LocationFetcherImpl private constructor(
     lifecycleOwner: LifecycleOwner,
     private val applicationContext: Context,
-    private val config: LocationFetcher.Config,
+    private val config: LocationFetcher.Config
 ) : LocationFetcher, DefaultLifecycleObserver {
 
     private var apiHolder: ApiHolder? = null
     private val permissionChecker = PermissionChecker(applicationContext, LOCATION_PERMISSIONS)
+    private var resolutionResolver: ResolutionResolver? = null
+    private var permissionRequester: PermissionRequester? = null
 
     private val locationRequest: LocationRequest = LocationRequest().apply {
         fastestInterval = config.fastestInterval
@@ -81,6 +85,14 @@ internal class LocationFetcherImpl private constructor(
 
     private val lastUpdateTimestamp = AtomicLong(0L)
 
+    override fun onCreate(owner: LifecycleOwner) {
+        super.onCreate(owner)
+        if (owner is FragmentActivity) {
+            resolutionResolver = ResolutionResolver(owner)
+            permissionRequester = PermissionRequester(owner, LOCATION_PERMISSIONS)
+        }
+    }
+
     override fun onStart(owner: LifecycleOwner) {
         super.onStart(owner)
         apiHolder = ApiHolder.create(owner, applicationContext).also {
@@ -115,8 +127,14 @@ internal class LocationFetcherImpl private constructor(
         apiHolder = null // avoid activity leaks
     }
 
+    override fun onDestroy(owner: LifecycleOwner) {
+        super.onDestroy(owner)
+        resolutionResolver = null
+        permissionRequester = null
+    }
+
     override suspend fun requestLocationPermissions(): LocationFetcher.PermissionStatus {
-        val result = apiHolder?.permissionRequester?.requirePermissions()
+        val result = permissionRequester?.requirePermissions()
             ?: LocationFetcher.PermissionStatus.UNKNOWN
         updatePermissionsStatusFlow(result)
         return result
@@ -148,11 +166,10 @@ internal class LocationFetcherImpl private constructor(
                     logd("checkSettings: Resolution required")
                     // Cast to a resolvable exception.
                     val resolvable = e as ResolvableApiException
-                    val resolver = apiHolder?.resolutionResolver
-                    logd("checkSettings: Resolution possible with $resolver.")
-                    if (resolver == null) return SETTINGS_STATUS.value
+                    logd("checkSettings: Resolution possible with $resolutionResolver.")
                     val req = IntentSenderRequest.Builder(resolvable.resolution).build()
-                    val result = resolver.request(req).resultCode.asSettingsStatus()
+                    val result = resolutionResolver?.request(req)?.resultCode?.asSettingsStatus()
+                        ?: return SETTINGS_STATUS.value
                     updateSettingsStatusFlow(result)
                     return result
                 } catch (e: IntentSender.SendIntentException) {

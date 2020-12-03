@@ -16,9 +16,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 internal data class ApiHolder(
     val locationManager: LocationManager,
     val fusedLocationClient: FusedLocationProviderClient,
-    val settingsClient: SettingsClient,
-    val resolutionResolver: ResolutionResolver? = null,
-    val permissionRequester: PermissionRequester? = null
+    val settingsClient: SettingsClient
 ) {
     companion object {
         @ExperimentalCoroutinesApi
@@ -37,16 +35,14 @@ internal data class ApiHolder(
         private fun FragmentActivity.createDataSources() = ApiHolder(
             ContextCompat.getSystemService(this, LocationManager::class.java) as LocationManager,
             LocationServices.getFusedLocationProviderClient(this),
-            LocationServices.getSettingsClient(this),
-            ResolutionResolver(this),
-            PermissionRequester(this, LocationFetcherImpl.LOCATION_PERMISSIONS)
+            LocationServices.getSettingsClient(this)
         )
 
         @ExperimentalCoroutinesApi
         private fun Context.createDataSources() = ApiHolder(
             ContextCompat.getSystemService(this, LocationManager::class.java) as LocationManager,
             LocationServices.getFusedLocationProviderClient(this),
-            LocationServices.getSettingsClient(this),
+            LocationServices.getSettingsClient(this)
         )
     }
 }
