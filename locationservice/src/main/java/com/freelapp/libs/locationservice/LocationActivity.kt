@@ -4,24 +4,24 @@ import android.content.*
 import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.os.Bundle
 import android.os.IBinder
+import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
-import com.freelapp.libs.locationservice.LocationService.Companion.logd
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.location.*
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.actor
 import com.google.android.gms.common.api.ResolvableApiException
 import kotlinx.coroutines.channels.SendChannel
+import kotlinx.coroutines.channels.actor
 import java.lang.ClassCastException
 
 /**
  * Service connection vars and binding code common to all classes is in this abstract class.
  */
-abstract class LocationActivity : AppCompatActivity(), ILocationListener {
+abstract class LocationActivity : AppCompatActivity() {
 
     companion object {
         const val HAS_LOCATION_PERMISSION_CODE = 11666
@@ -32,46 +32,53 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
     }
 
     private sealed class LocationServiceMsg {
-        class AddLocationListener(val listener: ILocationListener) : LocationServiceMsg()
-        class RemoveLocationListener(val listener: ILocationListener) : LocationServiceMsg()
+        class AddLocationListener(val listener: LocationChangeListener) : LocationServiceMsg()
+        class RemoveLocationListener(val listener: LocationChangeListener) : LocationServiceMsg()
         object StartRequestingLocationUpdates : LocationServiceMsg()
         object StopRequestingLocationUpdates : LocationServiceMsg()
         object BroadcastLocation : LocationServiceMsg()
     }
 
-    @ObsoleteCoroutinesApi
     private lateinit var locationServiceActor: SendChannel<LocationServiceMsg>
 
     var locationService: LocationService? = null
         private set
 
     private var bound: Boolean = false
+    private val locationPermissionListeners = mutableListOf<LocationPermissionListener>()
+    private val locationServiceConnectionListeners = mutableListOf<LocationServiceConnectionListener>()
+    private val locationSettingsListeners = mutableListOf<LocationSettingsListener>()
 
     private val locationServiceConn: ServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             locationService = (service as LocationService.LocalBinder).service.apply {
-                addLocationListener(this@LocationActivity)
+                if (this@LocationActivity is LocationChangeListener)
+                    addLocationListener(this@LocationActivity)
             }
             bound = true
 
-            logd("LocationActivity", "LocationService bound.")
+            logd( "LocationService bound.")
 
-            onLocationServiceConnected() // optionally overridden by children activities
+            locationServiceConnectionListeners.forEach { it.onLocationServiceConnected() }
         }
 
         override fun onServiceDisconnected(arg0: ComponentName) {
             locationService = null
             bound = false
 
-            logd("LocationActivity", "LocationService disconnected (unbounded).")
+            logd("LocationService disconnected.")
 
-            onLocationServiceDisconnected()
+            locationServiceConnectionListeners.forEach { it.onLocationServiceDisconnected() }
         }
     }
 
-    @ObsoleteCoroutinesApi
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        when (this) {
+            is LocationPermissionListener -> addLocationPermissionListener(this)
+            is LocationServiceConnectionListener -> addLocationServiceConnectionListener(this)
+            is LocationSettingsListener -> addLocationSettingsListener(this)
+        }
         locationServiceActor = lifecycleScope.actor(Dispatchers.Main) {
             for (msg in channel) {
                 // avoids processing messages while service not bound, but instead of ignoring command, wait for binding.
@@ -89,17 +96,26 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
         }
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        when (this) {
+            is LocationPermissionListener -> removeLocationPermissionListener(this)
+            is LocationServiceConnectionListener -> removeLocationServiceConnectionListener(this)
+            is LocationSettingsListener -> removeLocationSettingsListener(this)
+        }
+    }
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         when (requestCode) {
             REQUEST_CHECK_SETTINGS -> when (resultCode) {
                 RESULT_OK -> {
                     logd("Location is enabled in Settings")
-                    onLocationSettingsOn()
+                    locationSettingsListeners.forEach { it.onLocationSettingsOn() }
                     askForPermissionIfNeededAndBindIfNotAlready()
                 }
                 RESULT_CANCELED -> {
                     logd("Location is NOT enabled in Settings")
+                    locationSettingsListeners.forEach { it.onLocationSettingsOff() }
                     showSnackbar(R.string.need_location_settings)
                     checkSettings()
                 }
@@ -119,8 +135,8 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
 
         if (bound) {
             logd("onPause: Unbinding service...")
-
-            locationService?.removeLocationListener(this)
+            if (this@LocationActivity is LocationChangeListener)
+                locationService?.removeLocationListener(this)
             unbindService(locationServiceConn)
             bound = false
         }
@@ -175,13 +191,14 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
                 task.getResult(ApiException::class.java)
                 // All location settings are satisfied. The client can initialize location
                 logd("Checking settings - Satisfied.")
-                onLocationSettingsOn()
+                locationSettingsListeners.forEach { it.onLocationSettingsOn() }
                 askForPermissionIfNeededAndBindIfNotAlready()
             } catch (e: ApiException) {
                 logd("Checking settings - Not satisfied. Status code: ${e.statusCode}: ${e.localizedMessage}.")
                 when (e.statusCode) {
                     LocationSettingsStatusCodes.RESOLUTION_REQUIRED -> {
                         logd("Checking settings - Resolution required")
+                        locationSettingsListeners.forEach { it.onLocationSettingsOff() }
 
                         try {
                             // Cast to a resolvable exception.
@@ -220,7 +237,7 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
 
     private fun permissionGrantedCallCallbackAndBind() {
         logd("Permission granted. Binding service.")
-        onLocationPermissionGranted()
+        locationPermissionListeners.forEach { it.onLocationPermissionGranted() }
         bind()
     }
 
@@ -236,37 +253,65 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
         ActivityCompat.shouldShowRequestPermissionRationale(this, LOCATION_PERMISSION.first())
 
     /**
-     * Public methods
+     * Public API
      */
     /* update whoever registers about location changes */
-    @ObsoleteCoroutinesApi
-    fun addLocationListener(listener: ILocationListener) = lifecycleScope.launch {
-        locationServiceActor.send(LocationServiceMsg.AddLocationListener(listener))
+    fun addLocationListener(listener: LocationChangeListener) {
+        lifecycleScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            locationServiceActor.send(LocationServiceMsg.AddLocationListener(listener))
+        }
     }
 
-    @ObsoleteCoroutinesApi
-    fun removeLocationListener(listener: ILocationListener) = lifecycleScope.launch {
-        locationServiceActor.send(LocationServiceMsg.RemoveLocationListener(listener))
+    fun removeLocationListener(listener: LocationChangeListener) {
+        lifecycleScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            locationServiceActor.send(LocationServiceMsg.RemoveLocationListener(listener))
+        }
     }
 
-    @ObsoleteCoroutinesApi
-    fun startRequestingLocationUpdates() = lifecycleScope.launch {
-        locationServiceActor.send(LocationServiceMsg.StartRequestingLocationUpdates)
+    fun startRequestingLocationUpdates() {
+        lifecycleScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            locationServiceActor.send(LocationServiceMsg.StartRequestingLocationUpdates)
+        }
     }
 
-    @ObsoleteCoroutinesApi
-    fun stopRequestingLocationUpdates() = lifecycleScope.launch {
-        locationServiceActor.send(LocationServiceMsg.StopRequestingLocationUpdates)
+    fun stopRequestingLocationUpdates() {
+        lifecycleScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            locationServiceActor.send(LocationServiceMsg.StopRequestingLocationUpdates)
+        }
     }
 
-    @ObsoleteCoroutinesApi
-    fun broadcastLocation() = lifecycleScope.launch {
-        locationServiceActor.send(LocationServiceMsg.BroadcastLocation)
+    fun broadcastLocation() {
+        lifecycleScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            locationServiceActor.send(LocationServiceMsg.BroadcastLocation)
+        }
     }
 
-    // override this !
-    protected open fun onLocationServiceConnected() = Unit
-    protected open fun onLocationServiceDisconnected() = Unit
-    protected open fun onLocationPermissionGranted() = Unit
-    protected open fun onLocationSettingsOn() = Unit
+    fun addLocationPermissionListener(listener: LocationPermissionListener) {
+        locationPermissionListeners.add(listener)
+    }
+
+    fun removeLocationPermissionListener(listener: LocationPermissionListener) {
+        locationPermissionListeners.remove(listener)
+    }
+
+    fun addLocationSettingsListener(listener: LocationSettingsListener) {
+        locationSettingsListeners.add(listener)
+    }
+
+    fun removeLocationSettingsListener(listener: LocationSettingsListener) {
+        locationSettingsListeners.remove(listener)
+    }
+
+    fun addLocationServiceConnectionListener(listener: LocationServiceConnectionListener) {
+        locationServiceConnectionListeners.add(listener)
+    }
+
+    fun removeLocationServiceConnectionListener(listener: LocationServiceConnectionListener) {
+        locationServiceConnectionListeners.remove(listener)
+    }
+
+
+    private fun logd(msg: String) {
+        if (LocationService.debug) Log.d("LocationActivity", msg)
+    }
 }

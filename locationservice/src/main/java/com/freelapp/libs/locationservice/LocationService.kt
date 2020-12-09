@@ -23,20 +23,11 @@ class LocationService : Service(), LocationSource {
         var waitForFirebaseAuth: Boolean = false
         var locationRequest: LocationRequest = LocationRequest.create()
         var debug: Boolean = false
-
-        fun logd(msg: String) = logd(this::class.java.simpleName, msg)
-
-        fun logd(tag: String, msg: String) {
-            if (debug) Log.d(tag, msg)
-        }
     }
 
     private var lastUpdate: Long = 0
-
     private var gotUpdates: Int = 0
-
     private var mapListener: LocationSource.OnLocationChangedListener? = null
-
     private var currentLocation: Location? = null
         set(value) {
             value?.let {
@@ -62,7 +53,7 @@ class LocationService : Service(), LocationSource {
             }
         }
     private var requestingLocationUpdates = false
-    private val locationChangedListeners = mutableSetOf<ILocationListener>()
+    private val locationChangedListeners = mutableSetOf<LocationChangeListener>()
     private val fusedLocationClient by lazy { LocationServices.getFusedLocationProviderClient(this@LocationService) }
     private val locationManager by lazy { getSystemService(Context.LOCATION_SERVICE) as LocationManager }
     private val locationListener = object : LocationListener {
@@ -110,20 +101,20 @@ class LocationService : Service(), LocationSource {
     }
 
     // continue running until it is explicitly stopped: return sticky
-    override fun onStartCommand(intent: Intent, flags: Int, startId: Int) = Service.START_NOT_STICKY
+    override fun onStartCommand(intent: Intent, flags: Int, startId: Int) = START_NOT_STICKY
 
     override fun onBind(intent: Intent) = binder
 
     /**
      * Updates whoever registers about location changes.
      */
-    fun addLocationListener(listener: ILocationListener) {
+    fun addLocationListener(listener: LocationChangeListener) {
         logd("Adding location listener $listener")
         locationChangedListeners.add(listener)
         broadcastLocation()
     }
 
-    fun removeLocationListener(listener: ILocationListener) {
+    fun removeLocationListener(listener: LocationChangeListener) {
         logd("Removing location listener $listener")
         locationChangedListeners.remove(listener)
     }
@@ -236,4 +227,8 @@ class LocationService : Service(), LocationSource {
         Location.distanceBetween(latitude, longitude, l.latitude, l.longitude, result)
         result[0]
     } ?: Float.MAX_VALUE
+
+    private fun logd(msg: String) {
+        if (debug) Log.d("LocationService", msg)
+    }
 }
