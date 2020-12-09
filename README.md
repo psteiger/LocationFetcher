@@ -1,18 +1,47 @@
-# location-service
+# LocationFetcher
 
-Building location-aware Android apps can be a bit tricky.
+Simple location fetcher for Android Apps built with Kotlin and Coroutines.
 
-This library provides a simple location service and base activity to make your Android app location-aware.
+Building location-aware Android apps can be a bit tricky. This library makes it as simple as:
 
-The service uses GPS and network by default and needs ACCESS_FINE_LOCATION permission, but you can personalize your `locationRequest` to suit your needs.
+```
+class MyActivity : AppCompatActivity() {
+
+    private val locationFetcher: LocationFetcher by lazy {
+        LocationFetcher.create(this)
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        lifecycleScope.launchWhenStarted {
+            location.collect { location ->
+                // New location received.
+            }
+            settingsStatus.collect { enabled: Boolean ->
+                // Location got enabled or disabled in device settings.
+            }
+            permissionStatus.collect { allowed: Boolean ->
+                // App got allowed or disallowed to know the device's location.
+            }
+        }
+    }
+}
+```
+
+This library provides a simple location component, `LocationFetcher`, for use in any FragmentActivity, or any Context class, to make your Android app location-aware.
+
+The service uses GPS and network by default and needs ACCESS_FINE_LOCATION and ACCESS_COARSE_LOCATION.0
+
+You can personalize your `locationRequest` to suit your needs.
 
 
 ## Installation
 
 ### Using Gradle
 
+On app-level build.gradle, add dependency:
+
 ```
-implementation 'com.github.psteiger:location-service:4.0'
+implementation 'com.github.psteiger:locationfetcher:5.0'
 ```
 
 ### On Manifest
@@ -20,89 +49,40 @@ implementation 'com.github.psteiger:location-service:4.0'
 On root level, allow permission:
 
 ```
+<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 ```
 
-On app level, declare service:
+## Usage
+
+On any `FragmentActivity` or `Context` class, you can instantiate a `LocationFetcher` by calling:
 
 ```
-<service
-    android:name="com.freelapp.libs.locationservice.LocationService"
-    android:enabled="true"
-    android:exported="false" />
+LocationFetcher.create(this)
 ```
 
-### On Activity
+There are two method signatures: `LocationFetcher.create(Context)` and `LocationFetcher.create(FragmentActivity)`
 
-Now, the activity that will use the service must deal with:
+If `LocationFetcher` is created with a `FragmentActivity`, it will be able to show dialogs to request the user to enable permission in Android settings and to allow the app to obtain the device's location. If `LocationFetcher` is created with a non-`FragmentActivity` `Context`, we won't be able to show dialogs.
 
-1. asking the user for permission to access device,
-2. creating an instance of the location service,
-3. binding (and unbinding) to the location service instance,
-4. listening to location updates from the location service instance.
+Once instantiated, the component gives you three `Flow`s to collect: one for new locations, one for settings status, and one for location permissions status.
 
-There are two options for achieving this: use the base abstract activity provided by the library (recommended), or implement your own logic by hand.
+### Options
 
-#### Using provided base activity
-
-This is the simplest and recommended solution.
-
-Make your Activity:
-
-1. Extend `LocationActivity()` and implement `LocationChangedListener`.
-2. Override `onLocationReceived(l: Location)`.
-3. (Optional) Implement `LocationServiceConnectionListener` and override `onLocationServiceConnected()` and `onLocationServiceDisconnected()` to run code after service connection and disconnection. Note that this refers to service connection, not location changes.
-4. (Optional) Implement `LocationPermissionListener` and override `onLocationPermissionGranted()` to run code after user granted location permission to the app.
-5. (Optional) Implement `LocationSettingsListener` and override `onLocationSettingsOn()` and `onLocationSettingsOff()` to run code after location settings state changes (checked on `onStart()`).
+`LocationFetcher` supports the following configurations for location fetching when creating the component:
 
 ```
-import com.freelapp.libs.locationservice.LocationActivity
-
-class MyActivity : LocationActivity() : LocationChangedListener {
-
-    private var currentLocation: Location? = null
-
-    override fun onLocationReceived(l: Location) {
-        currentLocation = l
-    }
+LocationFetcher.create(this) {
+    fastestInterval = 5000
+    interval = 15000
+    maxWaitTime = 100000
+    priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+    smallestDisplacement = 50f
+    providers = listOf(
+        LocationRequest.Provider.GPS,
+        LocationRequest.Provider.Network, 
+        LocationRequest.Provider.Fused
+    )
+    debug = true
 }
 ```
-
-#### Creating your own logic to deal with the service: an example
-
-You may check source code to implement your own Activity logic.
-
-## Customizations
-
-### Using Firebase Auth?
-
-If you want to make the location service wait for Firebase user authentication before asking the device for location updates, you can:
-
-```
-LocationService.waitForFirebaseAuth = true
-```
-
-on Activity's `onCreate()` or App's `onCreate()`.
-
-This is useful when, on location changes, you trigger Firebase database changes that demands the user to be authenticated for permission to read/write to the database.
-
-### Other customizations
-
-On Activity's `onCreate()` or App's `onCreate()`, you can apply the following customizations.
-
-```
-LocationService.apply {
-    debug = true                        // prints debug info
-    locationRequest.apply {
-        numUpdates = 4                  // defaults to Int.MAX_VALUE
-        interval = 1000                 // defaults to 0 (milliseconds)
-        smallestDisplacement = 10f      // defaults to 0f (meters)
-    }
-}
-LocationActivity.apply {
-    askForPermissionUntilGiven = false       // insist on asking for permission until given
-    askForEnabledSettingsUntilGiven = false  // insist on asking until location setting is enabled
-    requestPermissionRationale = R.string.need_location_permission      // String resource of rationale for permission
-}
-```
-

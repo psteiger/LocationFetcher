@@ -1,1 +1,1 @@
-include ':locationservice'
+include ':locationfetcher'
