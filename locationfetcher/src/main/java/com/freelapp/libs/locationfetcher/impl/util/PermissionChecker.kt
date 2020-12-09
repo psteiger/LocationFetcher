@@ -32,5 +32,3 @@ internal suspend fun Context.hasPermissions(
             }.asPermissionStatus()
         }
     }
-
-

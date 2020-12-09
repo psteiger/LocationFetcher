@@ -8,9 +8,7 @@ import com.freelapp.libs.locationfetcher.LocationSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 
-internal class LocationSourceImpl(
-    locationFetcher: LocationFetcher
-) : LocationSource {
+internal class LocationSourceImpl(locationFetcher: LocationFetcher) : LocationSource {
 
     private val locationSource = MutableStateFlow(LocationSource.Source.REAL)
     private val _customLocation = MutableStateFlow<Location?>(null)

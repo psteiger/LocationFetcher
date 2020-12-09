@@ -17,7 +17,7 @@ import kotlin.coroutines.suspendCoroutine
 internal open class ActivityRequester<I, O, T : ActivityResultContract<I, O>>(
     activity: FragmentActivity,
     contract: T
-) : DefaultLifecycleObserver {
+) {
 
     private val mutex = Mutex()
     private var continuation by eraseWhenRead<Continuation<O>>()

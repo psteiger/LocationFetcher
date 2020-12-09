@@ -26,23 +26,27 @@ internal data class ApiHolder(
             else context.createDataSources()
 
         @ExperimentalCoroutinesApi
-        fun create(activity: FragmentActivity): ApiHolder = activity.createDataSources()
+        fun create(activity: FragmentActivity): ApiHolder =
+            activity.createDataSources()
 
         @ExperimentalCoroutinesApi
-        fun create(context: Context): ApiHolder = context.createDataSources()
+        fun create(context: Context): ApiHolder =
+            context.createDataSources()
 
         @ExperimentalCoroutinesApi
-        private fun FragmentActivity.createDataSources() = ApiHolder(
-            ContextCompat.getSystemService(this, LocationManager::class.java) as LocationManager,
-            LocationServices.getFusedLocationProviderClient(this),
-            LocationServices.getSettingsClient(this)
-        )
+        private fun FragmentActivity.createDataSources() =
+            ApiHolder(
+                ContextCompat.getSystemService(this, LocationManager::class.java) as LocationManager,
+                LocationServices.getFusedLocationProviderClient(this),
+                LocationServices.getSettingsClient(this)
+            )
 
         @ExperimentalCoroutinesApi
-        private fun Context.createDataSources() = ApiHolder(
-            ContextCompat.getSystemService(this, LocationManager::class.java) as LocationManager,
-            LocationServices.getFusedLocationProviderClient(this),
-            LocationServices.getSettingsClient(this)
-        )
+        private fun Context.createDataSources() =
+            ApiHolder(
+                ContextCompat.getSystemService(this, LocationManager::class.java) as LocationManager,
+                LocationServices.getFusedLocationProviderClient(this),
+                LocationServices.getSettingsClient(this)
+            )
     }
 }

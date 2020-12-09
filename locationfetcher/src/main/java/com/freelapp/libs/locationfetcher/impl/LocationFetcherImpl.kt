@@ -38,7 +38,7 @@ import kotlin.coroutines.resume
 
 @ExperimentalCoroutinesApi
 internal class LocationFetcherImpl private constructor(
-    lifecycleOwner: LifecycleOwner,
+    owner: LifecycleOwner,
     private val applicationContext: Context,
     private val config: LocationFetcher.Config
 ) : LocationFetcher, DefaultLifecycleObserver {
@@ -88,15 +88,9 @@ internal class LocationFetcherImpl private constructor(
         }
         apiHolder
             .filterNotNull()
-            .flatMapLatest {
-                val locationFlows = config.providers.map { provider ->
-                    provider.asLocationFlow(
-                        it.fusedLocationClient,
-                        it.locationManager,
-                        locationRequest
-                    )
-                }.toTypedArray()
-                merge(*locationFlows)
+            .flatMapLatest { apis ->
+                config.providers
+                    .asLocationFlow(apis, locationRequest)
                     .filter { it.isValid() }
                     .onEach {
                         LOCATION.value = it
@@ -274,9 +268,7 @@ internal class LocationFetcherImpl private constructor(
         if (config.debug) Log.d(TAG, msg, e)
     }
 
-    init {
-        lifecycleOwner.lifecycle.addObserver(this)
-    }
+    init { owner.lifecycle.addObserver(this) }
 
     companion object {
         private const val TAG = "LocationFetcher"

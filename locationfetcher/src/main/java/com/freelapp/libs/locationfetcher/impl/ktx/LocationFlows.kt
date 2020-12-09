@@ -2,8 +2,8 @@ package com.freelapp.libs.locationfetcher.impl.ktx
 
 import android.location.Location
 import android.location.LocationManager
-import android.util.Log
 import com.freelapp.libs.locationfetcher.LocationFetcher
+import com.freelapp.libs.locationfetcher.impl.entity.ApiHolder
 import com.freelapp.libs.locationfetcher.impl.listener.LocationCallbackImpl
 import com.freelapp.libs.locationfetcher.impl.listener.LocationListenerImpl
 import com.freelapp.libs.locationfetcher.impl.singleton.GlobalState.PERMISSION_STATUS
@@ -12,10 +12,7 @@ import com.google.android.gms.location.LocationRequest
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.*
 import kotlin.coroutines.cancellation.CancellationException
 
 @ExperimentalCoroutinesApi
@@ -27,12 +24,8 @@ internal fun LocationManager.locationFlowOf(
         .filter { it == LocationFetcher.PermissionStatus.ALLOWED }
         .flatMapLatest {
             callbackFlow {
-                val listener = LocationListenerImpl {
-                    Log.d("LocationFetcher", "LocationManager.locationFlowOf offering location $it")
-                    runCatching { offer(it) }
-                }
+                val listener = LocationListenerImpl { runCatching { offer(it) } }
                 try {
-                    Log.d("LocationFetcher", "LocationManager.locationFlowOf Adding callback")
                     requestLocationUpdates(
                         provider.value,
                         locationRequest.interval,
@@ -40,13 +33,9 @@ internal fun LocationManager.locationFlowOf(
                         listener
                     )
                 } catch (e: SecurityException) {
-                    Log.d("LocationFetcher", "LocationManager.locationFlowOf SecurityException", e)
                     cancel(CancellationException(e))
                 }
-                awaitClose {
-                    Log.d("LocationFetcher", "LocationManager.locationFlowOf Removing callback")
-                    removeUpdates(listener)
-                }
+                awaitClose { removeUpdates(listener) }
             }
         }
 
@@ -58,21 +47,13 @@ internal fun FusedLocationProviderClient.locationFlowOf(
         .filter { it == LocationFetcher.PermissionStatus.ALLOWED }
         .flatMapLatest {
             callbackFlow {
-                val callback = LocationCallbackImpl {
-                    Log.d("LocationFetcher", "FusedLocationProviderClient.locationFlowOf offering location $it")
-                    runCatching { offer(it) }
-                }
+                val callback = LocationCallbackImpl { runCatching { offer(it) } }
                 try {
-                    Log.d("LocationFetcher", "FusedLocationProviderClient.locationFlowOf Adding callback")
                     requestLocationUpdates(locationRequest, callback, null)
                 } catch (e: SecurityException) {
-                    Log.d("LocationFetcher", "FusedLocationProviderClient.locationFlowOf SecurityException", e)
                     cancel(CancellationException(e))
                 }
-                awaitClose {
-                    Log.d("LocationFetcher", "FusedLocationProviderClient.locationFlowOf Removing callback")
-                    removeLocationUpdates(callback)
-                }
+                awaitClose { removeLocationUpdates(callback) }
             }
         }
 
@@ -86,3 +67,23 @@ internal fun LocationFetcher.Provider.asLocationFlow(
     LocationFetcher.Provider.Network -> locationManager.locationFlowOf(locationRequest, this)
     LocationFetcher.Provider.Fused -> fusedLocationProviderClient.locationFlowOf(locationRequest)
 }
+
+@ExperimentalCoroutinesApi
+internal fun List<LocationFetcher.Provider>.asLocationFlows(
+    apiHolder: ApiHolder,
+    locationRequest: LocationRequest
+): List<Flow<Location>> =
+    map { provider ->
+        provider.asLocationFlow(
+            apiHolder.fusedLocationClient,
+            apiHolder.locationManager,
+            locationRequest
+        )
+    }
+
+@ExperimentalCoroutinesApi
+internal fun List<LocationFetcher.Provider>.asLocationFlow(
+    apiHolder: ApiHolder,
+    locationRequest: LocationRequest
+): Flow<Location> =
+    merge(*asLocationFlows(apiHolder, locationRequest).toTypedArray())
