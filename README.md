@@ -74,6 +74,13 @@ If `LocationFetcher` is created with a `FragmentActivity`, it will be able to sh
 
 Once instantiated, the component gives you three `Flow`s to collect: one for new locations, one for settings status, and one for location permissions status.
 
+To manually request location permissions or location settings enablement, you can call the following APIs:
+
+```kotlin
+suspend fun requestLocationPermissions(): Boolean?
+suspend fun requestEnableLocationSettings(): Boolean
+```
+
 ### Options
 
 `LocationFetcher` supports the following configurations for location fetching when creating the component:
@@ -90,8 +97,8 @@ LocationFetcher.create(this) {
         LocationRequest.Provider.Network, 
         LocationRequest.Provider.Fused
     )
-    requestLocationPermissions = true       // no effect if built with Context
-    requestLocationSettingEnablement = true // no effect if built with Context
+    requestLocationPermissions = true    // no effect if built with Context
+    requestEnableLocationSettings = true // no effect if built with Context
     debug = true
 }
 ```

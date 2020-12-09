@@ -27,9 +27,8 @@ import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.TaskCompletionSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
@@ -120,6 +119,29 @@ internal class LocationFetcherImpl private constructor(
     private var lastUpdateTimestamp: Long = 0
     private val fusedLocationClientRequest get() = locationRequest
     private val fusedLocationClientCallback = locationListener.asFusedLocationClientCallback()
+    private val isRequestingLocationUpdates = mutableMapOf(
+        LocationFetcher.Provider.GPS to false,
+        LocationFetcher.Provider.Network to false,
+        LocationFetcher.Provider.Fused to false
+    )
+
+    override fun onCreate(owner: LifecycleOwner) {
+        super.onCreate(owner)
+        logd("onCreate")
+        owner.lifecycleScope.launchWhenStarted {
+            settingsStatus.combine(permissionStatus) { settings, permissions ->
+                settings == true && permissions == true
+            }
+            .collect {
+                logd("onCreate: Settings & permissions enabled=$it")
+                if (it) {
+                    requestLocationUpdates()
+                } else {
+                    stopRequestingLocationUpdates()
+                }
+            }
+        }
+    }
 
     override fun onStart(owner: LifecycleOwner) {
         super.onStart(owner)
@@ -166,9 +188,9 @@ internal class LocationFetcherImpl private constructor(
                         logd(
                             "checkSettings: Resolution possible with $resolutionResolver." +
                                     " config.requestLocationSettingEnablement=" +
-                                    "${config.requestLocationSettingEnablement}"
+                                    "${config.requestEnableLocationSettings}"
                         )
-                        if (resolutionResolver == null || !config.requestLocationSettingEnablement) {
+                        if (resolutionResolver == null || !config.requestEnableLocationSettings) {
                             return false
                         }
                         val req = IntentSenderRequest.Builder(resolvable.resolution).build()
@@ -226,7 +248,9 @@ internal class LocationFetcherImpl private constructor(
     }
 
     private fun requestLocationUpdates(provider: LocationFetcher.Provider) {
-        logd("requestLocationUpdates: provider=$provider")
+        val isRequesting = isRequestingLocationUpdates.getValue(provider)
+        logd("requestLocationUpdates: provider=$provider, isRequesting=$isRequesting")
+        if (isRequesting) return
         try {
             when (provider) {
                 LocationFetcher.Provider.GPS,
@@ -242,6 +266,7 @@ internal class LocationFetcherImpl private constructor(
                     null
                 )
             }
+            isRequestingLocationUpdates[provider] = true
         } catch (e: SecurityException) { // no permission
             logd("requestLocationUpdates: Couldn't request location updates", e)
         } catch (e: IllegalArgumentException) { // provider doesn't exist
@@ -254,7 +279,9 @@ internal class LocationFetcherImpl private constructor(
     }
 
     private fun stopRequestingLocationUpdates(provider: LocationFetcher.Provider) {
-        logd("stopRequestingLocationUpdates: provider=$provider")
+        val isRequesting = isRequestingLocationUpdates.getValue(provider)
+        logd("stopRequestingLocationUpdates: provider=$provider, isRequesting=$isRequesting")
+        if (!isRequesting) return
         try {
             when (provider) {
                 LocationFetcher.Provider.GPS,
@@ -263,6 +290,7 @@ internal class LocationFetcherImpl private constructor(
                     fusedLocationClientCallback
                 )
             }
+            isRequestingLocationUpdates[provider] = false
         } catch (e: SecurityException) { // no permission
             logd("stopRequestingLocationUpdates: Couldn't stop requesting location updates", e)
         } catch (e: IllegalArgumentException) { // provider doesn't exist
