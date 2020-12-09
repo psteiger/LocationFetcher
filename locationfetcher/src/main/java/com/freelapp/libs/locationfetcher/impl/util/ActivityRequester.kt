@@ -1,14 +1,10 @@
 package com.freelapp.libs.locationfetcher.impl.util
 
-import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
 import android.util.Log
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.app.ActivityCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.DefaultLifecycleObserver
 import kotlinx.coroutines.Dispatchers
@@ -72,13 +68,6 @@ class PermissionRequester(
 
     private suspend fun hasPermissions() = withContext(Dispatchers.Default) {
         activity.hasPermissions(permissions)
-    }
-
-    private fun Context.hasPermissions(permissions: Array<String>): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
-        return permissions.all {
-            ActivityCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
-        }
     }
 
     private suspend fun requestPermissions() = request(permissions)

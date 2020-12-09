@@ -26,8 +26,11 @@ interface LocationFetcher {
     }
 
     val location: StateFlow<Location?>
-    val permissionStatus: StateFlow<Boolean>
-    val settingsStatus: StateFlow<Boolean>
+    val permissionStatus: StateFlow<Boolean?>
+    val settingsStatus: StateFlow<Boolean?>
+
+    suspend fun requestLocationPermissions(): Boolean?
+    suspend fun requestEnableLocationSettings(): Boolean
 
     class Config internal constructor(
         var fastestInterval: Long = locationRequest.fastestInterval,
@@ -36,6 +39,8 @@ interface LocationFetcher {
         var priority: Int = locationRequest.priority,
         var smallestDisplacement: Float = locationRequest.smallestDisplacement,
         var providers: List<Provider> = listOf(Provider.Fused, Provider.Network, Provider.GPS),
+        var requestLocationPermissions: Boolean = true,
+        var requestLocationSettingEnablement: Boolean = true,
         var debug: Boolean = false
     )
 
