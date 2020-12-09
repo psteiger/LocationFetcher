@@ -6,6 +6,7 @@ import android.content.IntentSender
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
 import androidx.activity.result.IntentSenderRequest
@@ -102,6 +103,10 @@ internal class LocationFetcherImpl private constructor(
                 LOCATION.value = location
                 lastUpdateTimestamp = SystemClock.elapsedRealtime()
             }
+        }
+
+        override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {
+            // For compatibility with API < Q
         }
 
         override fun onProviderDisabled(provider: String) {
