@@ -69,6 +69,7 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
                                 this,
                                 REQUEST_CHECK_SETTINGS
                             )
+
                         } catch (_: IntentSender.SendIntentException) {
                             // Ignore the error.
                         } catch (_: ClassCastException) {
@@ -90,7 +91,10 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
         super.onActivityResult(requestCode, resultCode, data)
         when (requestCode) {
             REQUEST_CHECK_SETTINGS -> when (resultCode) {
-                RESULT_OK -> askForPermissionAndBindIfNotAlready()
+                RESULT_OK -> {
+                    onLocationSettingsOn()
+                    askForPermissionAndBindIfNotAlready()
+                }
                 RESULT_CANCELED -> {
                     showSnackbar(R.string.need_location_settings)
                     checkSettings()
@@ -121,6 +125,7 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
                     LOCATION_PERMISSION.first()) != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions(this, LOCATION_PERMISSION, HAS_LOCATION_PERMISSION_CODE)
             } else {
+                onLocationPermissionGranted()
                 bind()
             }
         }
@@ -137,8 +142,8 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
                 } else if (ActivityCompat.shouldShowRequestPermissionRationale(this, LOCATION_PERMISSION.first())) {
                     showSnackbar(requestPermissionRationale)
 
-                    if (ContextCompat.checkSelfPermission(this, LOCATION_PERMISSION.first()) != PackageManager.PERMISSION_GRANTED &&
-                        askForPermissionUntilGiven) {
+                    if (ContextCompat.checkSelfPermission(this, LOCATION_PERMISSION.first())
+                        != PackageManager.PERMISSION_GRANTED && askForPermissionUntilGiven) {
                         ActivityCompat.requestPermissions(this, LOCATION_PERMISSION, HAS_LOCATION_PERMISSION_CODE)
                     }
                 }
@@ -210,4 +215,6 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
     // override this !
     protected open fun onLocationServiceConnected() = Unit
     protected open fun onLocationServiceDisconnected() = Unit
+    protected open fun onLocationPermissionGranted() = Unit
+    protected open fun onLocationSettingsOn() = Unit
 }
