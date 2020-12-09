@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.DefaultLifecycleObserver
+import com.freelapp.libs.locationfetcher.LocationFetcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -62,13 +63,14 @@ class PermissionRequester(
     ActivityResultContracts.RequestMultiplePermissions()
 ) {
 
-    suspend fun requirePermissions(): Boolean {
-        return hasPermissions() || requestPermissions().values.all { it }
+    suspend fun requirePermissions(): LocationFetcher.PermissionStatus {
+        return hasPermissions() or requestPermissions().values.all { it }.asPermissionStatus()
     }
 
-    private suspend fun hasPermissions() = withContext(Dispatchers.Default) {
-        activity.hasPermissions(permissions)
-    }
+    private suspend fun hasPermissions(): LocationFetcher.PermissionStatus =
+        withContext(Dispatchers.Default) {
+            activity.hasPermissions(permissions)
+        }
 
     private suspend fun requestPermissions() = request(permissions)
 }

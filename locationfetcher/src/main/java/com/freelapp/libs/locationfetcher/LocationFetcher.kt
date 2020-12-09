@@ -26,11 +26,11 @@ interface LocationFetcher {
     }
 
     val location: StateFlow<Location?>
-    val permissionStatus: StateFlow<Boolean?>
-    val settingsStatus: StateFlow<Boolean?>
+    val permissionStatus: StateFlow<PermissionStatus>
+    val settingsStatus: StateFlow<SettingsStatus>
 
-    suspend fun requestLocationPermissions(): Boolean?
-    suspend fun requestEnableLocationSettings(): Boolean
+    suspend fun requestLocationPermissions(): PermissionStatus
+    suspend fun requestEnableLocationSettings(): SettingsStatus
 
     class Config internal constructor(
         var fastestInterval: Long = locationRequest.fastestInterval,
@@ -49,4 +49,8 @@ interface LocationFetcher {
         object Network : Provider(LocationManager.NETWORK_PROVIDER)
         object Fused : Provider(FUSED_PROVIDER)
     }
+
+    enum class PermissionStatus { UNKNOWN, ALLOWED, DENIED }
+
+    enum class SettingsStatus { UNKNOWN, ENABLED, DISABLED }
 }

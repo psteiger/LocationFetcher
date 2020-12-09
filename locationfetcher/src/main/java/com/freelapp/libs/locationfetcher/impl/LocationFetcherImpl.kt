@@ -1,7 +1,6 @@
 package com.freelapp.libs.locationfetcher.impl
 
 import android.Manifest
-import android.app.Activity
 import android.content.Context
 import android.content.IntentSender
 import android.location.Location
@@ -17,9 +16,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.freelapp.libs.locationfetcher.LocationFetcher
-import com.freelapp.libs.locationfetcher.impl.util.PermissionChecker
-import com.freelapp.libs.locationfetcher.impl.util.PermissionRequester
-import com.freelapp.libs.locationfetcher.impl.util.ResolutionResolver
+import com.freelapp.libs.locationfetcher.impl.util.*
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.*
@@ -93,12 +90,14 @@ internal class LocationFetcherImpl private constructor(
     )
 
     private val _location = MutableStateFlow<Location?>(null)
-    private val _permissionStatus = MutableStateFlow<Boolean?>(null)
-    private val _settingsStatus = MutableStateFlow<Boolean?>(null)
+    private val _permissionStatus = MutableStateFlow(LocationFetcher.PermissionStatus.UNKNOWN)
+    private val _settingsStatus = MutableStateFlow(LocationFetcher.SettingsStatus.UNKNOWN)
 
     override val location: StateFlow<Location?> = _location.asStateFlow()
-    override val permissionStatus: StateFlow<Boolean?> = _permissionStatus.asStateFlow()
-    override val settingsStatus: StateFlow<Boolean?> = _settingsStatus.asStateFlow()
+    override val permissionStatus: StateFlow<LocationFetcher.PermissionStatus> =
+        _permissionStatus.asStateFlow()
+    override val settingsStatus: StateFlow<LocationFetcher.SettingsStatus> =
+        _settingsStatus.asStateFlow()
 
     private val locationListener: LocationListener = object : LocationListener {
         override fun onLocationChanged(location: Location) {
@@ -129,17 +128,21 @@ internal class LocationFetcherImpl private constructor(
         super.onCreate(owner)
         logd("onCreate")
         owner.lifecycleScope.launchWhenStarted {
-            settingsStatus.combine(permissionStatus) { settings, permissions ->
-                settings == true && permissions == true
-            }
-            .collect {
-                logd("onCreate: Settings & permissions enabled=$it")
-                if (it) {
-                    requestLocationUpdates()
-                } else {
-                    stopRequestingLocationUpdates()
+            settingsStatus
+                .combine(permissionStatus) { settings, permissions ->
+                    val settingsEnabled = settings == LocationFetcher.SettingsStatus.ENABLED
+                    val permissionsAllowed = permissions == LocationFetcher.PermissionStatus.ALLOWED
+                    logd("settings=$settings, permissions=$permissions")
+                    settingsEnabled && permissionsAllowed
                 }
-            }
+                .collect {
+                    logd("onCreate: Settings & permissions enabled=$it")
+                    if (it) {
+                        requestLocationUpdates()
+                    } else {
+                        stopRequestingLocationUpdates()
+                    }
+                }
         }
     }
 
@@ -147,7 +150,9 @@ internal class LocationFetcherImpl private constructor(
         super.onStart(owner)
         owner.lifecycleScope.launch {
             _permissionStatus.value = permissionChecker.hasPermissions().also {
-                if (!it && config.requestLocationPermissions) {
+                if (it != LocationFetcher.PermissionStatus.ALLOWED &&
+                    config.requestLocationPermissions
+                ) {
                     permissionRequester?.requirePermissions()
                 }
             }
@@ -161,13 +166,14 @@ internal class LocationFetcherImpl private constructor(
         stopRequestingLocationUpdates()
     }
 
-    override suspend fun requestLocationPermissions(): Boolean? {
+    override suspend fun requestLocationPermissions(): LocationFetcher.PermissionStatus {
         val result = permissionRequester?.requirePermissions()
+            ?: LocationFetcher.PermissionStatus.UNKNOWN
         _permissionStatus.value = result
         return result
     }
 
-    override suspend fun requestEnableLocationSettings(): Boolean {
+    override suspend fun requestEnableLocationSettings(): LocationFetcher.SettingsStatus {
         logd("checkSettings")
         val request = LocationSettingsRequest.Builder()
             .addLocationRequest(locationRequest)
@@ -179,8 +185,8 @@ internal class LocationFetcherImpl private constructor(
             taskResult.getResult(ApiException::class.java)
             // All location settings are satisfied. The client can initialize location
             logd("checkSettings: Satisfied.")
-            _settingsStatus.value = true
-            return true
+            _settingsStatus.value = LocationFetcher.SettingsStatus.ENABLED
+            return LocationFetcher.SettingsStatus.ENABLED
         } catch (e: ApiException) {
             logd("checkSettings: Not satisfied. Status code: ${e.statusCode}.", e)
             when (e.statusCode) {
@@ -195,16 +201,11 @@ internal class LocationFetcherImpl private constructor(
                                     "${config.requestEnableLocationSettings}"
                         )
                         if (resolutionResolver == null || !config.requestEnableLocationSettings) {
-                            _settingsStatus.value = false
-                            return false
+                            _settingsStatus.value = LocationFetcher.SettingsStatus.DISABLED
+                            return LocationFetcher.SettingsStatus.DISABLED
                         }
                         val req = IntentSenderRequest.Builder(resolvable.resolution).build()
-                        val reqResult = resolutionResolver.request(req)
-                        val result = when (val code = reqResult.resultCode) {
-                            Activity.RESULT_OK -> true
-                            Activity.RESULT_CANCELED -> false
-                            else -> false.also { logd("Unknown result code: $code") }
-                        }
+                        val result = resolutionResolver.request(req).resultCode.asSettingsStatus()
                         _settingsStatus.value = result
                         return result
                     } catch (e: IntentSender.SendIntentException) {
@@ -218,8 +219,8 @@ internal class LocationFetcherImpl private constructor(
         } catch (e: Exception) {
             logd("checkSettings: An unknown exception happened", e)
         }
-        _settingsStatus.value = false
-        return false
+        _settingsStatus.value = LocationFetcher.SettingsStatus.UNKNOWN
+        return LocationFetcher.SettingsStatus.UNKNOWN
     }
 
     private fun Location.isValid(): Boolean {

@@ -16,10 +16,10 @@ class MyActivity : AppCompatActivity() {
             location.collect { location: Location? ->
                 // New location received.
             }
-            settingsStatus.collect { enabled: Boolean? ->
+            settingsStatus.collect { enabled: SettingsStatus ->
                 // Location got enabled or disabled in device settings.
             }
-            permissionStatus.collect { allowed: Boolean? ->
+            permissionStatus.collect { allowed: PermissionStatus ->
                 // App got allowed or disallowed to know the device's location.
             }
         }
