@@ -14,33 +14,37 @@ internal class LocationSourceImpl(
 
     private val locationSource = MutableStateFlow(LocationSource.Source.REAL)
     private val _customLocation = MutableStateFlow<Location?>(null)
-    private val customLocation: SharedFlow<Location?> = _customLocation
-        .shareIn(
-            ProcessLifecycleOwner.get().lifecycleScope,
-            SharingStarted.WhileSubscribed(),
-            1
-        )
+    private val customLocation: SharedFlow<Location?> =
+        _customLocation
+            .shareIn(
+                ProcessLifecycleOwner.get().lifecycleScope,
+                SharingStarted.WhileSubscribed(),
+                1
+            )
 
-    override val realLocation: SharedFlow<Location?> = locationFetcher.location
-        .shareIn(
-            ProcessLifecycleOwner.get().lifecycleScope,
-            SharingStarted.WhileSubscribed(),
-            1
-        )
+    override val realLocation: SharedFlow<Location?> =
+        locationFetcher
+            .location
+            .shareIn(
+                ProcessLifecycleOwner.get().lifecycleScope,
+                SharingStarted.WhileSubscribed(),
+                1
+            )
 
     @ExperimentalCoroutinesApi
-    override val location: SharedFlow<Location?> = locationSource
-        .flatMapLatest {
-            when (it) {
-                LocationSource.Source.REAL -> realLocation
-                LocationSource.Source.CUSTOM -> customLocation
+    override val location: SharedFlow<Location?> =
+        locationSource
+            .flatMapLatest {
+                when (it) {
+                    LocationSource.Source.REAL -> realLocation
+                    LocationSource.Source.CUSTOM -> customLocation
+                }
             }
-        }
-        .shareIn(
-            ProcessLifecycleOwner.get().lifecycleScope,
-            SharingStarted.WhileSubscribed(),
-            1
-        )
+            .shareIn(
+                ProcessLifecycleOwner.get().lifecycleScope,
+                SharingStarted.WhileSubscribed(),
+                1
+            )
 
     override fun setCustomLocation(location: Location) {
         _customLocation.value = location
