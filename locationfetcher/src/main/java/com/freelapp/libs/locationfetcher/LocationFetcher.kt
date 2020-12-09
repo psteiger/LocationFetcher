@@ -32,7 +32,7 @@ interface LocationFetcher {
     suspend fun requestLocationPermissions(): PermissionStatus
     suspend fun requestEnableLocationSettings(): SettingsStatus
 
-    class Config internal constructor(
+    data class Config(
         var fastestInterval: Long = locationRequest.fastestInterval,
         var interval: Long = locationRequest.interval,
         var maxWaitTime: Long = locationRequest.maxWaitTime,
