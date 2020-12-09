@@ -156,10 +156,14 @@ internal class LocationFetcherImpl private constructor(
                     permissionRequester?.requirePermissions()
                 }
             }
-            if (config.requestEnableLocationSettings) {
-                requestEnableLocationSettings()
+            _settingsStatus.value = checkLocationSettingsEnabled().also {
+                if (it != LocationFetcher.SettingsStatus.ENABLED &&
+                    config.requestEnableLocationSettings
+                ) {
+                    requestEnableLocationSettings()
+                }
+                requestLocationUpdates()
             }
-            requestLocationUpdates()
         }
     }
 
@@ -212,8 +216,25 @@ internal class LocationFetcherImpl private constructor(
         } catch (e: Exception) {
             logd("checkSettings: An unknown exception happened", e)
         }
-        _settingsStatus.value = LocationFetcher.SettingsStatus.UNKNOWN
-        return LocationFetcher.SettingsStatus.UNKNOWN
+        _settingsStatus.value = LocationFetcher.SettingsStatus.DISABLED
+        return LocationFetcher.SettingsStatus.DISABLED
+    }
+
+    private suspend fun checkLocationSettingsEnabled(): LocationFetcher.SettingsStatus {
+        val request = LocationSettingsRequest.Builder()
+            .addLocationRequest(locationRequest)
+            .build()
+        val taskResult = settingsClient
+            .checkLocationSettings(request)
+            .awaitTaskResult()
+        return runCatching {
+            taskResult.getResult(ApiException::class.java)
+            // All location settings are satisfied. The client can initialize location
+            logd("checkLocationSettingsEnabled: Satisfied.")
+            LocationFetcher.SettingsStatus.ENABLED
+        }.getOrElse {
+            LocationFetcher.SettingsStatus.DISABLED
+        }
     }
 
     private fun Location.isValid(): Boolean {
