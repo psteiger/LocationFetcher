@@ -165,12 +165,12 @@ abstract class LocationActivity : AppCompatActivity(), ILocationListener {
     }
 
     @ObsoleteCoroutinesApi
-    private val locationServiceActor = GlobalScope.actor<LocationServiceMsg>(Dispatchers.Default) {
-        for (msg in channel) {
-            // avoids processing messages while service not bound, but instead of ignoring command, wait for binding.
-            // that is why actors are used here.
-            while (!bound) delay(200)
+    private val locationServiceActor = GlobalScope.actor<LocationServiceMsg>(Dispatchers.Main) {
+        // avoids processing messages while service not bound, but instead of ignoring command, wait for binding.
+        // that is why actors are used here.
+        while (!bound) delay(200)
 
+        for (msg in channel) {
             when (msg) {
                 is LocationServiceMsg.AddLocationListener -> locationService?.addLocationListener(msg.listener)
                 is LocationServiceMsg.RemoveLocationListener -> locationService?.removeLocationListener(msg.listener)
