@@ -47,6 +47,6 @@ dependencies {
     implementation "androidx.lifecycle:lifecycle-process:$lifecycleVersion"
     implementation "androidx.lifecycle:lifecycle-runtime-ktx:$lifecycleVersion"
     implementation "androidx.lifecycle:lifecycle-common-java8:$lifecycleVersion"
-    implementation 'com.github.psteiger:flow-lifecycle-observer:0.2.1'
+    implementation 'com.github.psteiger:flow-lifecycle-observer:minsdk16-SNAPSHOT'
     implementation 'javax.inject:javax.inject:1'
 }
