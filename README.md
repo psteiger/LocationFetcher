@@ -61,7 +61,7 @@ On app-level `build.gradle`, add dependency:
 
 ```groovy
 dependencies {
-  implementation 'com.github.psteiger:locationfetcher:6.00'
+  implementation 'com.github.psteiger:locationfetcher:6.01'
 }
 ```
 
@@ -118,7 +118,7 @@ Results will be delivered on the aforementioned flows.
 (Note: for GPS and Network providers, only `interval` and `smallestDisplacement` are used. If you want to use all options, limit providers to `LocationRequest.Provider.Fused`)
 
 ```kotlin
-LocationFetcher.create(this) {
+locationFetcher {
     fastestInterval = 5000
     interval = 15000
     maxWaitTime = 100000
@@ -157,5 +157,5 @@ val config = LocationFetcher.config(
     requestEnableLocationSettings = true, // no effect if built with Context
     debug = true
 )
-LocationFetcher.create(this, config)
+locationFetcher(config)
 ```

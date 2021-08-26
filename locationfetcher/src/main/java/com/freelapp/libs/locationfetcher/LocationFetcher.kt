@@ -11,13 +11,13 @@ import kotlinx.coroutines.flow.StateFlow
 
 @ExperimentalCoroutinesApi
 fun ComponentActivity.locationFetcher(
-    config: LocationFetcher.Config.() -> Unit
-): LocationFetcher = LocationFetcher.create(this@locationFetcher, config)
+    config: LocationFetcher.Config.() -> Unit = { }
+): LocationFetcher = LocationFetcher.create(this@locationFetcher, LocationFetcher.Config().apply(config))
 
 @ExperimentalCoroutinesApi
 fun Context.locationFetcher(
-    config: LocationFetcher.Config.() -> Unit
-): LocationFetcher = LocationFetcher.create(this@locationFetcher, config)
+    config: LocationFetcher.Config.() -> Unit = { }
+): LocationFetcher = LocationFetcher.create(this@locationFetcher, LocationFetcher.Config().apply(config))
 
 interface LocationFetcher {
 
@@ -41,13 +41,13 @@ interface LocationFetcher {
         fun create(
             activity: ComponentActivity,
             config: Config.() -> Unit = { }
-        ): LocationFetcher = create(activity, Config().apply(config).copy())
+        ): LocationFetcher = create(activity, Config().apply(config))
 
         @ExperimentalCoroutinesApi
         fun create(
             context: Context,
             config: Config.() -> Unit = { }
-        ): LocationFetcher = create(context, Config().apply(config).copy())
+        ): LocationFetcher = create(context, Config().apply(config))
     }
 
     val location: StateFlow<Location?>
