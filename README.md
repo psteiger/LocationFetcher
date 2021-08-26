@@ -7,31 +7,35 @@ Simple location fetcher for Android Apps built with Kotlin and Coroutines.
 Building location-aware Android apps can be a bit tricky. This library makes it as simple as:
 
 ```kotlin
-class MyActivity : AppCompatActivity() {
+class MyActivity : ComponentActivity() {
 
-    private val locationFetcher: LocationFetcher by lazy {
-        LocationFetcher.create(this)
+    private val locationFetcher by lazy {
+        locationFetcher()   // extension on ComponentActivity
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        with (locationFetcher) {
-            location
-                .onEach { /* Location received */ }
-                .launchIn(lifecycleScope)
-        
-            settingsStatus
-                .onEach { /* Location got enabled or disabled in device settings */ }
-                .launchIn(lifecycleScope)
-            
-            permissionStatus
-                .onEach { /* App allowed or disallowed to access the device's location. */ }
-                .launchIn(lifecycleScope)
+    init {
+        lifecycleScope.launch {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                with (locationFetcher) {
+                    location
+                        .onEach { /* Location received */ }
+                        .launchIn(lifecycleScope)
+
+                    settingsStatus
+                        .onEach { /* Location got enabled or disabled in device settings */ }
+                        .launchIn(lifecycleScope)
+
+                    permissionStatus
+                        .onEach { /* App allowed or disallowed to access the device's location. */ }
+                        .launchIn(lifecycleScope)
+                }
+            }
         }
     }
 }
 ```
 
-This library provides a simple location component, `LocationFetcher`, requiring only either an `FragmentActivity` instance or a `Context` instance, to make your Android app location-aware.
+This library provides a simple location component, `LocationFetcher`, requiring only either an `ComponentActivity` instance or a `Context` instance, to make your Android app location-aware.
 
 The service uses GPS and network as location providers by default and thus the app needs to declare use of the `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION` permissions on its `AndroidManifest.xml`.
 
@@ -57,7 +61,7 @@ On app-level `build.gradle`, add dependency:
 
 ```groovy
 dependencies {
-    implementation 'com.github.psteiger:locationfetcher:5.22'
+  implementation 'com.github.psteiger:locationfetcher:6.00'
 }
 ```
 
@@ -76,24 +80,36 @@ On root level, allow permission:
 
 ## Usage
 
-On any `FragmentActivity` or `Context` class, you can instantiate a `LocationFetcher` by calling:
+On any `ComponentActivity` or `Context` class, you can instantiate a `LocationFetcher` by calling the extension functions on `ComponentActivity` or `Context`:
+
+```kotlin
+locationFetcher()
+```
+
+Alternatively, there are two `LocationFetcher.create()` method overloads: `LocationFetcher.create(Context)` and `LocationFetcher.create(ComponentActivity)`
 
 ```kotlin
 LocationFetcher.create(this)
 ```
 
-There are two `LocationFetcher.create()` method signatures: `LocationFetcher.create(Context)` and `LocationFetcher.create(FragmentActivity)`
+If `LocationFetcher` is created with a `ComponentActivity`, it will be able to show dialogs to request the user to enable permission in Android settings and to allow the app to obtain the device's location. If `LocationFetcher` is created with a non-`ComponentActivity` `Context`, it won't be able to show dialogs.
 
-If `LocationFetcher` is created with a `FragmentActivity`, it will be able to show dialogs to request the user to enable permission in Android settings and to allow the app to obtain the device's location. If `LocationFetcher` is created with a non-`FragmentActivity` `Context`, it won't be able to show dialogs.
+Once instantiated, the component gives you three `Flow`s to collect: one for new locations, one for settings status, and one for location permissions status:
 
-Once instantiated, the component gives you three `Flow`s to collect: one for new locations, one for settings status, and one for location permissions status.
+```kotlin
+LocationFetcher.location: StateFlow<Location?>
+LocationFetcher.permissionStatus: StateFlow<PermissionStatus>
+LocationFetcher.settingsStatus: StateFlow<SettingsStatus>
+```
 
 To manually request location permissions or location settings enablement, you can call the following APIs:
 
 ```kotlin
-suspend fun requestLocationPermissions(): LocationFetcher.PermissionStatus
-suspend fun requestEnableLocationSettings(): LocationFetcher.SettingsStatus
+suspend fun requestLocationPermissions()
+suspend fun requestEnableLocationSettings()
 ```
+
+Results will be delivered on the aforementioned flows.
 
 ### Options
 
@@ -108,6 +124,7 @@ LocationFetcher.create(this) {
     maxWaitTime = 100000
     priority = LocationRequest.PRIORITY_HIGH_ACCURACY
     smallestDisplacement = 50f
+    isWaitForAccurateLocation = false
     providers = listOf(
         LocationRequest.Provider.GPS,
         LocationRequest.Provider.Network, 
@@ -129,6 +146,7 @@ val config = LocationFetcher.config(
     maxWaitTime = 100000,
     priority = LocationRequest.PRIORITY_HIGH_ACCURACY,
     smallestDisplacement = 50f,
+    isWaitForAccurateLocation = false,
     providers = listOf(
         LocationRequest.Provider.GPS,
         LocationRequest.Provider.Network,

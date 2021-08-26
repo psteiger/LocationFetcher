@@ -2,6 +2,7 @@ package com.freelapp.libs.locationfetcher.impl.ktx
 
 import android.location.Location
 import android.location.LocationManager
+import android.os.HandlerThread
 import com.freelapp.libs.locationfetcher.LocationFetcher
 import com.freelapp.libs.locationfetcher.impl.entity.ApiHolder
 import com.freelapp.libs.locationfetcher.impl.listener.LocationCallbackImpl
@@ -9,6 +10,7 @@ import com.freelapp.libs.locationfetcher.impl.listener.LocationListenerImpl
 import com.freelapp.libs.locationfetcher.impl.singleton.GlobalState.PERMISSION_STATUS
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationRequest
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.awaitClose
@@ -24,20 +26,26 @@ internal fun LocationManager.locationFlowOf(
         .filter { it == LocationFetcher.PermissionStatus.ALLOWED }
         .flatMapLatest {
             callbackFlow {
-                val listener = LocationListenerImpl { runCatching { offer(it) } }
+                val thread = HandlerThread("LocationManagerThread").apply { start() }
+                val listener = LocationListenerImpl { trySend(it) }
                 try {
                     requestLocationUpdates(
                         provider.value,
                         locationRequest.interval,
                         locationRequest.smallestDisplacement,
-                        listener
+                        listener,
+                        thread.looper
                     )
                 } catch (e: SecurityException) {
                     cancel(CancellationException(e))
                 }
-                awaitClose { removeUpdates(listener) }
+                awaitClose {
+                    removeUpdates(listener)
+                    thread.quit()
+                }
             }
         }
+        .flowOn(Dispatchers.IO)
 
 @ExperimentalCoroutinesApi
 internal fun FusedLocationProviderClient.locationFlowOf(
@@ -47,15 +55,20 @@ internal fun FusedLocationProviderClient.locationFlowOf(
         .filter { it == LocationFetcher.PermissionStatus.ALLOWED }
         .flatMapLatest {
             callbackFlow {
-                val callback = LocationCallbackImpl { runCatching { offer(it) } }
+                val thread = HandlerThread("FusedLocationProviderClientThread").apply { start() }
+                val callback = LocationCallbackImpl { trySend(it) }
                 try {
-                    requestLocationUpdates(locationRequest, callback, null)
+                    requestLocationUpdates(locationRequest, callback, thread.looper)
                 } catch (e: SecurityException) {
                     cancel(CancellationException(e))
                 }
-                awaitClose { removeLocationUpdates(callback) }
+                awaitClose {
+                    removeLocationUpdates(callback)
+                    thread.quit()
+                }
             }
         }
+        .flowOn(Dispatchers.IO)
 
 @ExperimentalCoroutinesApi
 internal fun LocationFetcher.Provider.asLocationFlow(

@@ -6,23 +6,17 @@ import android.content.IntentSender
 import android.location.Location
 import android.os.SystemClock
 import android.util.Log
+import androidx.activity.ComponentActivity
 import androidx.activity.result.IntentSenderRequest
-import androidx.fragment.app.FragmentActivity
-import androidx.lifecycle.DefaultLifecycleObserver
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.ProcessLifecycleOwner
-import androidx.lifecycle.lifecycleScope
-import com.freelapp.flowlifecycleobserver.observeIn
+import androidx.lifecycle.*
 import com.freelapp.libs.locationfetcher.LocationFetcher
 import com.freelapp.libs.locationfetcher.impl.entity.ApiHolder
+import com.freelapp.libs.locationfetcher.impl.entity.createDataSources
 import com.freelapp.libs.locationfetcher.impl.ktx.asLocationFlow
 import com.freelapp.libs.locationfetcher.impl.singleton.GlobalState.LOCATION
 import com.freelapp.libs.locationfetcher.impl.singleton.GlobalState.PERMISSION_STATUS
 import com.freelapp.libs.locationfetcher.impl.singleton.GlobalState.SETTINGS_STATUS
-import com.freelapp.libs.locationfetcher.impl.util.PermissionChecker
-import com.freelapp.libs.locationfetcher.impl.util.PermissionRequester
-import com.freelapp.libs.locationfetcher.impl.util.ResolutionResolver
-import com.freelapp.libs.locationfetcher.impl.util.asSettingsStatus
+import com.freelapp.libs.locationfetcher.impl.util.*
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.LocationRequest
@@ -32,6 +26,7 @@ import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.TaskCompletionSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.resume
@@ -41,10 +36,10 @@ internal class LocationFetcherImpl private constructor(
     owner: LifecycleOwner,
     private val applicationContext: Context,
     private val config: LocationFetcher.Config
-) : LocationFetcher, DefaultLifecycleObserver {
+) : LocationFetcher {
 
     constructor(
-        activity: FragmentActivity,
+        activity: ComponentActivity,
         config: LocationFetcher.Config
     ) : this(
         activity,
@@ -61,17 +56,29 @@ internal class LocationFetcherImpl private constructor(
         config
     )
 
-    private val apiHolder = MutableStateFlow<ApiHolder?>(null)
-    private val permissionChecker = PermissionChecker(applicationContext, LOCATION_PERMISSIONS)
-    private var resolutionResolver: ResolutionResolver? = null
-    private var permissionRequester: PermissionRequester? = null
-    private val locationRequest: LocationRequest = LocationRequest().apply {
+    private val apiHolder: MutableStateFlow<ApiHolder?> = owner.lifecycleMutableStateFlow(Lifecycle.State.STARTED) {
+        it.createDataSources(applicationContext)
+    }
+    private val resolutionResolver: ResolutionResolver? by owner.lifecycle(Lifecycle.State.CREATED) {
+        (it as? ComponentActivity)?.resolutionResolver { activityResult ->
+            val result = activityResult.resultCode.asSettingsStatus()
+            updateSettingsStatusFlow(result)
+        }
+    }
+    private val permissionRequester: PermissionRequester? by owner.lifecycle(Lifecycle.State.CREATED) {
+        (it as? ComponentActivity)?.permissionRequester { map ->
+            val result = map.values.all { it }.asPermissionStatus()
+            updatePermissionsStatusFlow(result)
+        }
+    }
+    private val locationRequest: LocationRequest = LocationRequest.create().apply {
         fastestInterval = config.fastestInterval
         interval = config.interval
         maxWaitTime = config.maxWaitTime
         priority = config.priority
         smallestDisplacement = config.smallestDisplacement
         numUpdates = config.numUpdates
+        isWaitForAccurateLocation = config.isWaitForAccurateLocation
     }
     override val location: StateFlow<Location?> = LOCATION.asStateFlow()
     override val permissionStatus: StateFlow<LocationFetcher.PermissionStatus> =
@@ -80,57 +87,40 @@ internal class LocationFetcherImpl private constructor(
         SETTINGS_STATUS.asStateFlow()
     private val lastUpdateTimestamp = AtomicLong(0L)
 
-    override fun onCreate(owner: LifecycleOwner) {
-        super.onCreate(owner)
-        if (owner is FragmentActivity) {
-            resolutionResolver = ResolutionResolver(owner)
-            permissionRequester = PermissionRequester(owner, LOCATION_PERMISSIONS)
-        }
-        apiHolder
-            .filterNotNull()
-            .flatMapLatest { apis ->
-                config.providers
-                    .asLocationFlow(apis, locationRequest)
-                    .filter { it.isValid() }
-                    .onEach {
-                        LOCATION.value = it
-                        lastUpdateTimestamp.set(SystemClock.elapsedRealtime())
+    init {
+        owner.lifecycleScope.launch {
+            owner.repeatOnLifecycle(Lifecycle.State.CREATED) {
+                apiHolder
+                    .filterNotNull()
+                    .flatMapLatest { apis ->
+                        config.providers
+                            .asLocationFlow(apis, locationRequest)
+                            .filter { it.isValid() }
+                            .onEach {
+                                LOCATION.value = it
+                                lastUpdateTimestamp.set(SystemClock.elapsedRealtime())
+                            }
                     }
+                    .launchIn(this)
             }
-            .observeIn(owner)
-    }
-
-    override fun onStart(owner: LifecycleOwner) {
-        super.onStart(owner)
-        apiHolder.value = ApiHolder.create(owner, applicationContext)
-        // Note: On older Android versions, there is no concept of onResume/onPause, so a dialog
-        // is shown repeatedly (onStop called when dialog is showing, onStart called when it is
-        // closed).
-        owner.lifecycleScope.launchWhenStarted {
-            if (shouldRequestLocationPermissions()) requestLocationPermissions()
-            if (shouldRequestEnableLocationSettings()) requestEnableLocationSettings()
+            owner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                if (shouldRequestLocationPermissions()) requestLocationPermissions()
+                if (shouldRequestEnableLocationSettings()) requestEnableLocationSettings()
+            }
         }
     }
 
-    override fun onStop(owner: LifecycleOwner) {
-        super.onStop(owner)
-        apiHolder.value = null // avoid activity leaks
+    override suspend fun requestLocationPermissions() {
+        val status = checkLocationPermissionsAllowed()
+        val alreadyAllowed = status == LocationFetcher.PermissionStatus.ALLOWED
+        if (alreadyAllowed) {
+            updatePermissionsStatusFlow(status)
+        } else {
+            requestPermissions()
+        }
     }
 
-    override fun onDestroy(owner: LifecycleOwner) {
-        super.onDestroy(owner)
-        resolutionResolver = null // TODO maybe not needed
-        permissionRequester = null
-    }
-
-    override suspend fun requestLocationPermissions(): LocationFetcher.PermissionStatus {
-        val result = permissionRequester?.requirePermissions()
-            ?: LocationFetcher.PermissionStatus.UNKNOWN
-        updatePermissionsStatusFlow(result)
-        return result
-    }
-
-    override suspend fun requestEnableLocationSettings(): LocationFetcher.SettingsStatus {
+    override suspend fun requestEnableLocationSettings() {
         logd("checkSettings")
         val request =
             LocationSettingsRequest.Builder()
@@ -148,7 +138,7 @@ internal class LocationFetcherImpl private constructor(
             // All location settings are satisfied. The client can initialize location
             logd("checkSettings: Satisfied.")
             updateSettingsStatusFlow(LocationFetcher.SettingsStatus.ENABLED)
-            return LocationFetcher.SettingsStatus.ENABLED
+            return
         } catch (e: ApiException) {
             logd("checkSettings: Not satisfied. Status code: ${e.statusCode}.", e)
             when (e.statusCode) {
@@ -158,10 +148,8 @@ internal class LocationFetcherImpl private constructor(
                     val resolvable = e as ResolvableApiException
                     logd("checkSettings: Resolution possible with $resolutionResolver.")
                     val req = IntentSenderRequest.Builder(resolvable.resolution).build()
-                    val result = resolutionResolver?.request(req)?.resultCode?.asSettingsStatus()
-                        ?: return SETTINGS_STATUS.value
-                    updateSettingsStatusFlow(result)
-                    return result
+                    resolutionResolver?.launch(req)
+                    return
                 } catch (e: IntentSender.SendIntentException) {
                     logd("checkSettings: SendIntentException", e)
                 } catch (e: ClassCastException) {
@@ -173,7 +161,6 @@ internal class LocationFetcherImpl private constructor(
             logd("checkSettings: An exception happened", e)
         }
         updateSettingsStatusFlow(LocationFetcher.SettingsStatus.DISABLED)
-        return LocationFetcher.SettingsStatus.DISABLED
     }
 
     private fun updatePermissionsStatusFlow(permission: LocationFetcher.PermissionStatus) {
@@ -193,7 +180,7 @@ internal class LocationFetcherImpl private constructor(
                 config.requestEnableLocationSettings
 
     private suspend fun checkLocationPermissionsAllowed(): LocationFetcher.PermissionStatus {
-        val hasPermissions = permissionChecker.hasPermissions()
+        val hasPermissions = applicationContext.hasPermissions(LOCATION_PERMISSIONS)
         updatePermissionsStatusFlow(hasPermissions)
         return hasPermissions
     }
@@ -260,6 +247,10 @@ internal class LocationFetcherImpl private constructor(
             }
         }
 
+    private fun requestPermissions() {
+        permissionRequester?.launch(LOCATION_PERMISSIONS)
+    }
+
     private fun <T> TaskCompletionSource<T>.withException(e: Exception): Task<T> =
         apply { setException(e) }.task
 
@@ -267,8 +258,6 @@ internal class LocationFetcherImpl private constructor(
     private inline fun logd(msg: String, e: Throwable? = null) {
         if (config.debug) Log.d(TAG, msg, e)
     }
-
-    init { owner.lifecycle.addObserver(this) }
 
     companion object {
         private const val TAG = "LocationFetcher"
