@@ -1,47 +1,33 @@
 package com.freelapp.libs.locationfetcher.impl.util
 
-import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlin.properties.ReadOnlyProperty
 import kotlin.reflect.KProperty
 
-inline fun <reified T : LifecycleOwner> T.onLifecycleStateAtLeast(
+internal inline fun <reified T : LifecycleOwner> T.onLifecycleStateAtLeast(
     state: Lifecycle.State,
-    crossinline onEnter: (T) -> Unit,
-    crossinline onLeave: (T) -> Unit
+    noinline onEnter: (T) -> Unit,
+    noinline onLeave: (T) -> Unit
 ) {
-    lifecycle.addObserver(object : DefaultLifecycleObserver {
-        override fun onCreate(owner: LifecycleOwner) {
-            if (state == Lifecycle.State.CREATED && owner is T) onEnter(owner)
+    val enterEvent = Lifecycle.Event.upTo(state)
+    val leaveEvent = Lifecycle.Event.downFrom(state)
+    val observer = LifecycleEventObserver { owner, event ->
+        if (owner !is T) return@LifecycleEventObserver
+        when (event) {
+            enterEvent -> onEnter(owner)
+            leaveEvent -> onLeave(owner)
+            else -> {}
         }
-
-        override fun onStart(owner: LifecycleOwner) {
-            if (state == Lifecycle.State.STARTED && owner is T) onEnter(owner)
-        }
-
-        override fun onResume(owner: LifecycleOwner) {
-            if (state == Lifecycle.State.RESUMED && owner is T) onEnter(owner)
-        }
-
-        override fun onPause(owner: LifecycleOwner) {
-            if (state == Lifecycle.State.RESUMED && owner is T) onLeave(owner)
-        }
-
-        override fun onStop(owner: LifecycleOwner) {
-            if (state == Lifecycle.State.STARTED && owner is T) onLeave(owner)
-        }
-
-        override fun onDestroy(owner: LifecycleOwner) {
-            if (state == Lifecycle.State.CREATED && owner is T) onLeave(owner)
-        }
-    })
+    }
+    lifecycle.addObserver(observer)
 }
 
-inline fun <reified T : LifecycleOwner, U> T.lifecycleMutableStateFlow(
+internal inline fun <reified T : LifecycleOwner, U> T.lifecycleMutableStateFlow(
     state: Lifecycle.State,
-    crossinline valueFactory: (T) -> U
+    noinline valueFactory: (T) -> U
 ): MutableStateFlow<U?> =
     MutableStateFlow<U?>(null).also { mutableStateFlow ->
         onLifecycleStateAtLeast(
@@ -51,11 +37,11 @@ inline fun <reified T : LifecycleOwner, U> T.lifecycleMutableStateFlow(
         )
     }
 
-inline fun <CLASS, reified T : LifecycleOwner, U> T.lifecycle(
+internal inline fun <CLASS, reified T : LifecycleOwner, U> T.lifecycle(
     state: Lifecycle.State,
-    crossinline valueFactory: (T) -> U
+    noinline valueFactory: (T) -> U
 ): ReadOnlyProperty<CLASS, U?> =
-    object : ReadOnlyProperty<CLASS, U?>, DefaultLifecycleObserver {
+    object : ReadOnlyProperty<CLASS, U?> {
         var value: U? = null
 
         init {

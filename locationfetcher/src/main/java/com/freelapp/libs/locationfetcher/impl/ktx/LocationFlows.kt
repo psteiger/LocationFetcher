@@ -11,13 +11,11 @@ import com.freelapp.libs.locationfetcher.impl.singleton.GlobalState.PERMISSION_S
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationRequest
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
 import kotlin.coroutines.cancellation.CancellationException
 
-@ExperimentalCoroutinesApi
 internal fun LocationManager.locationFlowOf(
     locationRequest: LocationRequest,
     provider: LocationFetcher.Provider
@@ -47,7 +45,6 @@ internal fun LocationManager.locationFlowOf(
         }
         .flowOn(Dispatchers.IO)
 
-@ExperimentalCoroutinesApi
 internal fun FusedLocationProviderClient.locationFlowOf(
     locationRequest: LocationRequest
 ): Flow<Location> =
@@ -70,7 +67,6 @@ internal fun FusedLocationProviderClient.locationFlowOf(
         }
         .flowOn(Dispatchers.IO)
 
-@ExperimentalCoroutinesApi
 internal fun LocationFetcher.Provider.asLocationFlow(
     fusedLocationProviderClient: FusedLocationProviderClient,
     locationManager: LocationManager,
@@ -81,7 +77,6 @@ internal fun LocationFetcher.Provider.asLocationFlow(
     LocationFetcher.Provider.Fused -> fusedLocationProviderClient.locationFlowOf(locationRequest)
 }
 
-@ExperimentalCoroutinesApi
 internal fun List<LocationFetcher.Provider>.asLocationFlows(
     apiHolder: ApiHolder,
     locationRequest: LocationRequest
@@ -94,7 +89,6 @@ internal fun List<LocationFetcher.Provider>.asLocationFlows(
         )
     }
 
-@ExperimentalCoroutinesApi
 internal fun List<LocationFetcher.Provider>.asLocationFlow(
     apiHolder: ApiHolder,
     locationRequest: LocationRequest

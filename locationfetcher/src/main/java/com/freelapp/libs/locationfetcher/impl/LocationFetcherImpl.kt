@@ -8,7 +8,10 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.result.IntentSenderRequest
-import androidx.lifecycle.*
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.freelapp.libs.locationfetcher.LocationFetcher
 import com.freelapp.libs.locationfetcher.impl.entity.ApiHolder
 import com.freelapp.libs.locationfetcher.impl.entity.createDataSources
@@ -24,14 +27,12 @@ import com.google.android.gms.location.LocationSettingsRequest
 import com.google.android.gms.location.LocationSettingsStatusCodes
 import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.TaskCompletionSource
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.resume
 
-@ExperimentalCoroutinesApi
 internal class LocationFetcherImpl private constructor(
     owner: LifecycleOwner,
     private val applicationContext: Context,
@@ -49,16 +50,18 @@ internal class LocationFetcherImpl private constructor(
 
     constructor(
         context: Context,
+        owner: LifecycleOwner,
         config: LocationFetcher.Config
     ) : this(
-        ProcessLifecycleOwner.get(),
+        owner,
         context.applicationContext,
         config
     )
 
-    private val apiHolder: MutableStateFlow<ApiHolder?> = owner.lifecycleMutableStateFlow(Lifecycle.State.STARTED) {
-        it.createDataSources(applicationContext)
-    }
+    private val apiHolder: MutableStateFlow<ApiHolder?> =
+        owner.lifecycleMutableStateFlow(Lifecycle.State.CREATED) {
+            it.createDataSources(applicationContext)
+        }
     private val resolutionResolver: ResolutionResolver? by owner.lifecycle(Lifecycle.State.CREATED) {
         (it as? ComponentActivity)?.resolutionResolver { activityResult ->
             val result = activityResult.resultCode.asSettingsStatus()
@@ -89,7 +92,7 @@ internal class LocationFetcherImpl private constructor(
 
     init {
         owner.lifecycleScope.launch {
-            owner.repeatOnLifecycle(Lifecycle.State.CREATED) {
+            owner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 apiHolder
                     .filterNotNull()
                     .flatMapLatest { apis ->
@@ -103,9 +106,19 @@ internal class LocationFetcherImpl private constructor(
                     }
                     .launchIn(this)
             }
-            owner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                if (shouldRequestLocationPermissions()) requestLocationPermissions()
-                if (shouldRequestEnableLocationSettings()) requestEnableLocationSettings()
+        }
+        config.requestEnableLocationSettingsOnLifecycle?.let {
+            owner.lifecycleScope.launch {
+                owner.repeatOnLifecycle(it) {
+                    requestEnableLocationSettings()
+                }
+            }
+        }
+        config.requestLocationPermissionOnLifecycle?.let {
+            owner.lifecycleScope.launch {
+                owner.repeatOnLifecycle(it) {
+                    requestLocationPermissions()
+                }
             }
         }
     }
@@ -171,19 +184,10 @@ internal class LocationFetcherImpl private constructor(
         SETTINGS_STATUS.value = permission
     }
 
-    private suspend fun shouldRequestLocationPermissions() =
-        checkLocationPermissionsAllowed() != LocationFetcher.PermissionStatus.ALLOWED &&
-                config.requestLocationPermissions
-
-    private suspend fun shouldRequestEnableLocationSettings() =
-        checkLocationSettingsEnabled() != LocationFetcher.SettingsStatus.ENABLED &&
-                config.requestEnableLocationSettings
-
-    private suspend fun checkLocationPermissionsAllowed(): LocationFetcher.PermissionStatus {
-        val hasPermissions = applicationContext.hasPermissions(LOCATION_PERMISSIONS)
-        updatePermissionsStatusFlow(hasPermissions)
-        return hasPermissions
-    }
+    private suspend fun checkLocationPermissionsAllowed(): LocationFetcher.PermissionStatus =
+        applicationContext.hasPermissions(LOCATION_PERMISSIONS).also {
+            updatePermissionsStatusFlow(it)
+        }
 
     private suspend fun checkLocationSettingsEnabled(): LocationFetcher.SettingsStatus {
         val request =

@@ -5,10 +5,10 @@ plugins {
 }
 
 android {
-    compileSdk = 30
+    compileSdk = 31
     defaultConfig {
         minSdk = 16
-        targetSdk = 30
+        targetSdk = 31
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
@@ -40,22 +40,21 @@ afterEvaluate {
 }
 
 fun DependencyHandlerScope.coroutines() {
-    val version = "1.5.1"
+    val version = "1.5.2"
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$version")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:$version")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:$version")
 }
 
 fun DependencyHandlerScope.jetpack() {
-    implementation("androidx.activity:activity-ktx:1.3.1")
-    implementation("androidx.fragment:fragment-ktx:1.4.0-alpha07")
-    implementation("androidx.appcompat:appcompat:1.3.1")
+    implementation("androidx.activity:activity-ktx:1.4.0-beta01")
+    implementation("androidx.fragment:fragment-ktx:1.4.0-alpha10")
+    implementation("androidx.appcompat:appcompat:1.4.0-beta01")
     implementation("androidx.core:core-ktx:1.6.0")
     androidxLifecycle()
 }
 
 fun DependencyHandlerScope.androidxLifecycle() {
-    val lifecycleVersion = "2.4.0-alpha03"
-    implementation("androidx.lifecycle:lifecycle-process:$lifecycleVersion")
+    val lifecycleVersion = "2.4.0-rc01"
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:$lifecycleVersion")
-    implementation("androidx.lifecycle:lifecycle-common-java8:$lifecycleVersion")
+    implementation("androidx.lifecycle:lifecycle-common:$lifecycleVersion")
 }
