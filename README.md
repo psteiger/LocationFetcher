@@ -61,7 +61,7 @@ On app-level `build.gradle`, add dependency:
 
 ```groovy
 dependencies {
-  implementation 'com.github.psteiger:locationfetcher:6.0.1'
+  implementation 'com.github.psteiger:locationfetcher:7.0.0'
 }
 ```
 
@@ -86,10 +86,10 @@ On any `ComponentActivity` or `Context` class, you can instantiate a `LocationFe
 locationFetcher()
 ```
 
-Alternatively, there are two `LocationFetcher.create()` method overloads: `LocationFetcher.create(Context)` and `LocationFetcher.create(ComponentActivity)`
+Alternatively, there are two `LocationFetcher()` method overloads: `LocationFetcher(Context, LifecycleOwner)` and `LocationFetcher(ComponentActivity)`
 
 ```kotlin
-LocationFetcher.create(this)
+LocationFetcher(this)
 ```
 
 If `LocationFetcher` is created with a `ComponentActivity`, it will be able to show dialogs to request the user to enable permission in Android settings and to allow the app to obtain the device's location. If `LocationFetcher` is created with a non-`ComponentActivity` `Context`, it won't be able to show dialogs.
@@ -131,9 +131,9 @@ locationFetcher {
         LocationRequest.Provider.Fused
     )
     numUpdates = Int.MAX_VALUE
-    requestLocationPermissions = true    // no effect if built with Context
-    requestEnableLocationSettings = true // no effect if built with Context
-    debug = true
+    requestLocationPermissionOnLifecycle: Lifecycle.State?      // no effect if built with Context
+    requestEnableLocationSettingsOnLifecycle: Lifecycle.State?  // no effect if built with Context
+    debug = false
 }
 ```
 
