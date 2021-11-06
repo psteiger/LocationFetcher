@@ -1,10 +1,16 @@
+import java.io.FileInputStream
+import java.util.*
+
 // Create variables with empty default values
 val propFile = File(rootProject.rootDir, "local.properties")
-val prop = java.util.Properties().apply {
-    java.io.FileInputStream(propFile).use {
-        load(it)
+val prop = Properties().apply {
+    if (propFile.exists()) {
+        FileInputStream(propFile).use {
+            load(it)
+        }
     }
 }
+
 extra.apply {
     set("ossrhUsername", System.getenv("OSSRH_USERNAME") ?: prop.getProperty("ossrhUsername"))
     set("ossrhPassword", System.getenv("OSSRH_PASSWORD") ?: prop.getProperty("ossrhPassword"))
