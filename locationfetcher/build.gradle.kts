@@ -8,7 +8,7 @@ plugins {
 apply(from = "$rootDir/scripts/publish-root.gradle.kts")
 
 group = "app.freel"
-version = "8.0.0-alpha01"
+version = "8.0.0-alpha02"
 
 android {
     compileSdk = 31
@@ -37,7 +37,7 @@ afterEvaluate {
             register<MavenPublication>("release") {
                 from(components["release"])
                 groupId = "app.freel"
-                version = "8.0.0-alpha01"
+                version = "8.0.0-alpha02"
                 artifactId = project.name
                 pom {
                     name.set(project.name)
