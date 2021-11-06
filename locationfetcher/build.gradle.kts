@@ -8,7 +8,7 @@ plugins {
 apply(from = "$rootDir/scripts/publish-root.gradle.kts")
 
 group = "app.freel"
-version = "8.0.0-alpha06"
+version = "8.0.0-alpha07"
 
 android {
     compileSdk = 31
@@ -30,6 +30,11 @@ android {
     }
 }
 
+val sourcesJar = task<Jar>("androidSourcesJar") {
+    archiveClassifier.set("sources")
+    from(android.sourceSets["main"].java.srcDirs)
+}
+
 afterEvaluate {
     publishing {
         publications {
@@ -37,8 +42,11 @@ afterEvaluate {
             register<MavenPublication>("release") {
                 from(components["release"])
                 groupId = "app.freel"
-                version = "8.0.0-alpha06"
+                version = "8.0.0-alpha07"
                 artifactId = project.name
+                artifact(sourcesJar).apply {
+                    classifier = "sources"
+                }
                 pom {
                     name.set(project.name)
                     description.set("Easy Location fetching for Android apps.")
