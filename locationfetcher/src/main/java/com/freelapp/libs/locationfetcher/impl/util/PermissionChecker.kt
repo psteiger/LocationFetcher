@@ -4,22 +4,21 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.ActivityCompat
-import com.freelapp.libs.locationfetcher.LocationFetcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 internal suspend fun Context.hasPermissions(
     permissions: Array<String>
-): LocationFetcher.PermissionStatus =
+): Boolean =
     withContext(Dispatchers.IO) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-            LocationFetcher.PermissionStatus.ALLOWED
+            true
         } else {
             permissions.all {
                 ActivityCompat.checkSelfPermission(
                     this@hasPermissions,
                     it
                 ) == PackageManager.PERMISSION_GRANTED
-            }.asPermissionStatus()
+            }
         }
     }
