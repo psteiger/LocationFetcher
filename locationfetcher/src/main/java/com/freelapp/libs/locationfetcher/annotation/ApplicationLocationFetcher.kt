@@ -4,4 +4,4 @@ import javax.inject.Qualifier
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
-annotation class ApplicationLocationFetcher
+public annotation class ApplicationLocationFetcher
