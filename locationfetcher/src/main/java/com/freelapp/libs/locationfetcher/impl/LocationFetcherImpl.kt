@@ -2,8 +2,10 @@ package com.freelapp.libs.locationfetcher.impl
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Context
 import android.location.Location
+import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -12,13 +14,13 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import arrow.core.*
+import arrow.core.None
+import arrow.core.invalid
+import arrow.core.validNel
+import arrow.core.zip
 import com.freelapp.libs.locationfetcher.LocationFetcher
-import com.freelapp.libs.locationfetcher.impl.entity.ApiHolder
 import com.freelapp.libs.locationfetcher.impl.entity.createDataSources
 import com.freelapp.libs.locationfetcher.impl.entity.invoke
-import com.freelapp.libs.locationfetcher.impl.util.asLocationFlow
-import com.freelapp.libs.locationfetcher.impl.util.asValidatedNelFlow
 import com.freelapp.libs.locationfetcher.impl.singleton.LOCATION
 import com.freelapp.libs.locationfetcher.impl.singleton.PERMISSION_STATUS
 import com.freelapp.libs.locationfetcher.impl.singleton.SETTINGS_STATUS
@@ -29,7 +31,9 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationSettingsStatusCodes
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.coroutines.resume
 
 internal class LocationFetcherImpl private constructor(
     owner: LifecycleOwner,
@@ -56,25 +60,43 @@ internal class LocationFetcherImpl private constructor(
         config
     )
 
-    private val apiHolder: MutableStateFlow<ApiHolder?> =
-        owner.lifecycleMutableStateFlow(Lifecycle.State.CREATED) {
-            it.createDataSources(applicationContext)
-        }
-    private val resolutionResolver: ResolutionResolver? by owner.lifecycle(Lifecycle.State.CREATED) { owner ->
+    override val location = LOCATION.asSharedFlow()
+    override val permissionStatus = PERMISSION_STATUS.asSharedFlow()
+    override val settingsStatus = SETTINGS_STATUS.asSharedFlow()
+
+    private val apiHolder = owner.lifecycleMutableStateFlow(Lifecycle.State.CREATED) {
+        it.createDataSources(applicationContext)
+    }
+    private val resolutionResolver by owner.lifecycle(Lifecycle.State.CREATED) { owner ->
         (owner as? ComponentActivity)?.resolutionResolver { activityResult ->
             val resolved = Activity.RESULT_OK == activityResult.resultCode
             logd("Got setting resolution result $resolved")
             SETTINGS_STATUS.tryEmit(resolved)
         }
     }
-    private val permissionRequester: PermissionRequester? by owner.lifecycle(Lifecycle.State.CREATED) { owner ->
+    private val permissionRequester by owner.lifecycle(Lifecycle.State.CREATED) { owner ->
         (owner as? ComponentActivity)?.permissionRequester { map ->
             logd("Got permission result map $map")
-            val result = map.values.all { it }
-            PERMISSION_STATUS.tryEmit(result)
+            checkLocationPermissionsAllowed()
         }
     }
-    private val locationRequest: LocationRequest = LocationRequest.create().apply {
+    private val shouldShowPermissionRationale by owner.lifecycle(Lifecycle.State.CREATED) { owner ->
+        {
+            LOCATION_PERMISSIONS.any {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    (owner as? ComponentActivity)?.shouldShowRequestPermissionRationale(it) ?: false
+                } else {
+                    false
+                }
+            }
+        }
+    }
+    private val rationaleDialogBuilder by owner.lifecycle(Lifecycle.State.CREATED) { owner ->
+        (owner as? Activity)?.let {
+            AlertDialog.Builder(it).setMessage(config.rationale)
+        }
+    }
+    private val locationRequest = LocationRequest.create().apply {
         fastestInterval = config.fastestInterval
         interval = config.interval
         maxWaitTime = config.maxWaitTime
@@ -83,16 +105,19 @@ internal class LocationFetcherImpl private constructor(
         numUpdates = config.numUpdates
         isWaitForAccurateLocation = config.isWaitForAccurateLocation
     }
-    override val location = LOCATION.asSharedFlow()
-    override val permissionStatus = PERMISSION_STATUS.asSharedFlow()
-    override val settingsStatus = SETTINGS_STATUS.asSharedFlow()
+
     private val lastUpdateTimestamp = AtomicLong(0L)
 
     init {
         owner.lifecycleScope.launch {
             owner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 val perms = PERMISSION_STATUS
-                    .onSubscription { requestLocationPermissions() }
+                    .onSubscription {
+                        if (!checkLocationPermissionsAllowed()) {
+                            if (shouldShowRationale()) showRationale()
+                            requestLocationPermissions()
+                        }
+                    }
                     .asValidatedNelFlow(LocationFetcher.Error.PermissionDenied)
                 val settings = SETTINGS_STATUS
                     .onSubscription { requestEnableLocationSettings() }
@@ -126,11 +151,7 @@ internal class LocationFetcherImpl private constructor(
     override suspend fun requestLocationPermissions() {
         val allowed = checkLocationPermissionsAllowed()
         logd("requestLocationPermissions: allowed=$allowed")
-        if (allowed) {
-            PERMISSION_STATUS.tryEmit(allowed)
-        } else {
-            requestPermissions()
-        }
+        requestPermissions()
     }
 
     override suspend fun requestEnableLocationSettings() {
@@ -157,7 +178,7 @@ internal class LocationFetcherImpl private constructor(
         }
     }
 
-    private suspend fun checkLocationPermissionsAllowed(): Boolean =
+    private fun checkLocationPermissionsAllowed(): Boolean =
         applicationContext.hasPermissions(LOCATION_PERMISSIONS).also {
             PERMISSION_STATUS.tryEmit(it)
         }
@@ -181,6 +202,22 @@ internal class LocationFetcherImpl private constructor(
     private fun requestPermissions() {
         permissionRequester?.launch(LOCATION_PERMISSIONS)
     }
+
+    override fun shouldShowRationale(): Boolean =
+        shouldShowPermissionRationale?.invoke() ?: false
+
+    private suspend fun showRationale() = rationaleDialogBuilder?.let { builder ->
+        suspendCancellableCoroutine<Unit> { cont ->
+            val dialog = builder
+                .setPositiveButton(android.R.string.ok) { _, _ -> }
+                .create()
+                .apply { setOnDismissListener { cont.resume(Unit) } }
+                .also { it.show() }
+            cont.invokeOnCancellation {
+                dialog.dismiss()
+            }
+        }
+    } ?: false
 
     @Suppress("NOTHING_TO_INLINE")
     private inline fun logd(msg: String, e: Throwable? = null) {

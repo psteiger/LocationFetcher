@@ -20,9 +20,10 @@ public interface LocationFetcher {
 
     public suspend fun requestLocationPermissions()
     public suspend fun requestEnableLocationSettings()
+    public fun shouldShowRationale(): Boolean
 
     public data class Config(
-        var replayLast: Boolean = true,
+        var rationale: String,
         var fastestInterval: Long = locationRequest.fastestInterval,
         var interval: Long = locationRequest.interval,
         var maxWaitTime: Long = locationRequest.maxWaitTime,
@@ -47,9 +48,9 @@ public interface LocationFetcher {
         public object SettingDisabled : Error()
     }
 
-    @Deprecated("Permission status is now reported by 'location' flow in case of error")
+    @Deprecated("Replaced by LocationFetcher.Error.SettingDisabled")
     public enum class PermissionStatus { UNKNOWN, ALLOWED, DENIED }
 
-    @Deprecated("Settings status is now reported by 'location' flow in case of error")
+    @Deprecated("Replaced by LocationFetcher.Error.SettingDisabled")
     public enum class SettingsStatus { UNKNOWN, ENABLED, DISABLED }
 }
