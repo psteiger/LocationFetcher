@@ -32,8 +32,6 @@ public interface LocationFetcher {
         var numUpdates: Int = locationRequest.numUpdates,
         var isWaitForAccurateLocation: Boolean = locationRequest.isWaitForAccurateLocation,
         var providers: List<Provider> = listOf(Provider.Fused, Provider.Network, Provider.GPS),
-        var requestLocationPermissionOnLifecycle: Lifecycle.State? = Lifecycle.State.STARTED,
-        var requestEnableLocationSettingsOnLifecycle: Lifecycle.State? = Lifecycle.State.STARTED,
         var debug: Boolean = false
     )
 

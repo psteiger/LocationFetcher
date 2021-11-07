@@ -8,7 +8,7 @@ plugins {
 apply(from = "$rootDir/scripts/publish-root.gradle.kts")
 
 group = "app.freel"
-version = "8.0.0-alpha08"
+version = "8.0.0"
 
 android {
     compileSdk = 31
@@ -42,7 +42,7 @@ afterEvaluate {
             register<MavenPublication>("release") {
                 from(components["release"])
                 groupId = "app.freel"
-                version = "8.0.0-alpha08"
+                version = "8.0.0"
                 artifactId = project.name
                 artifact(sourcesJar).apply {
                     classifier = "sources"

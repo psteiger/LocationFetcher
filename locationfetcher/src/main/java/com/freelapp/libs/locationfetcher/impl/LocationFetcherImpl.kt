@@ -37,7 +37,7 @@ import kotlin.coroutines.resume
 
 internal class LocationFetcherImpl private constructor(
     owner: LifecycleOwner,
-    private val applicationContext: Context,
+    private val applicationContext: Lazy<Context>,
     private val config: LocationFetcher.Config
 ) : LocationFetcher {
 
@@ -46,7 +46,7 @@ internal class LocationFetcherImpl private constructor(
         config: LocationFetcher.Config
     ) : this(
         activity,
-        activity.applicationContext,
+        lazy { activity.applicationContext },
         config
     )
 
@@ -56,7 +56,7 @@ internal class LocationFetcherImpl private constructor(
         config: LocationFetcher.Config
     ) : this(
         owner,
-        context.applicationContext,
+        lazy { context.applicationContext },
         config
     )
 
@@ -65,7 +65,7 @@ internal class LocationFetcherImpl private constructor(
     override val settingsStatus = SETTINGS_STATUS.asSharedFlow()
 
     private val apiHolder = owner.lifecycleMutableStateFlow(Lifecycle.State.CREATED) {
-        it.createDataSources(applicationContext)
+        it.createDataSources(applicationContext.value)
     }
     private val resolutionResolver by owner.lifecycle(Lifecycle.State.CREATED) { owner ->
         (owner as? ComponentActivity)?.resolutionResolver { activityResult ->
@@ -105,7 +105,6 @@ internal class LocationFetcherImpl private constructor(
         numUpdates = config.numUpdates
         isWaitForAccurateLocation = config.isWaitForAccurateLocation
     }
-
     private val lastUpdateTimestamp = AtomicLong(0L)
 
     init {
@@ -179,7 +178,7 @@ internal class LocationFetcherImpl private constructor(
     }
 
     private fun checkLocationPermissionsAllowed(): Boolean =
-        applicationContext.hasPermissions(LOCATION_PERMISSIONS).also {
+        applicationContext.value.hasPermissions(LOCATION_PERMISSIONS).also {
             PERMISSION_STATUS.tryEmit(it)
         }
 
