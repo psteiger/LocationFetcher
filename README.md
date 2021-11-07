@@ -1,6 +1,6 @@
 # LocationFetcher
 
-[![Download](https://img.shields.io/maven-central/v.svg?label=maven-central&metadataUrl=https%3A%2F%2Frepo1.maven.org%2Fmaven2%2Fapp%2Ffreel%2Flocationfetcher%2Fmaven-metadata.xml)](https://search.maven.org/artifact/app.freel/locationfetcher)
+[![Download](https://img.shields.io/maven-central/v/app.freel/locationfetcher)](https://search.maven.org/artifact/app.freel/locationfetcher)
 
 Simple location fetcher for Android Apps built with Kotlin and Coroutines.
 
