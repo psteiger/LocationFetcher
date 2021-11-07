@@ -1,12 +1,14 @@
 package com.freelapp.libs.locationfetcher
 
 import android.location.Location
-import kotlinx.coroutines.flow.StateFlow
+import arrow.core.Either
+import arrow.core.Nel
+import kotlinx.coroutines.flow.SharedFlow
 
-interface LocationSource {
-    val realLocation: StateFlow<Location?>
-    val location: StateFlow<Location?>
-    var customLocation: Location?
-    var locationSource: Source
-    enum class Source { REAL, CUSTOM }
+public interface LocationSource {
+    public val realLocation: SharedFlow<Either<Nel<LocationFetcher.Error>, Location>>
+    public val location: SharedFlow<Either<Nel<LocationFetcher.Error>, Location>>
+    public var customLocation: Location?
+    public var locationSource: Source
+    public enum class Source { REAL, CUSTOM }
 }

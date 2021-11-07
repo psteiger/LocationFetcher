@@ -1,6 +1,7 @@
 package com.freelapp.libs.locationfetcher.impl
 
 import android.location.Location
+import arrow.core.right
 import com.freelapp.libs.locationfetcher.LocationFetcher
 import com.freelapp.libs.locationfetcher.LocationSource
 import kotlinx.coroutines.CoroutineScope
@@ -21,16 +22,15 @@ internal class LocationSourceImpl(
         get() = _customLocation.value
         set(value) { _customLocation.value = value }
 
-    override val realLocation: StateFlow<Location?>
-        get() = locationFetcher.location
+    override val realLocation get() = locationFetcher.location
 
-    override val location: StateFlow<Location?> =
+    override val location =
         _locationSource
-            .flatMapLatest {
-                when (it) {
+            .flatMapLatest { source ->
+                when (source) {
                     LocationSource.Source.REAL -> realLocation
-                    LocationSource.Source.CUSTOM -> _customLocation
+                    LocationSource.Source.CUSTOM -> _customLocation.filterNotNull().map { it.right() }
                 }
             }
-            .stateIn(scope, SharingStarted.WhileSubscribed(), null)
+            .shareIn(scope, SharingStarted.WhileSubscribed(), 1)
 }

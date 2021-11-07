@@ -7,42 +7,46 @@ import com.freelapp.libs.locationfetcher.impl.LocationFetcherImpl
 import com.freelapp.libs.locationfetcher.impl.LocationSourceImpl
 import kotlinx.coroutines.CoroutineScope
 
-fun ComponentActivity.locationFetcher(
+public fun ComponentActivity.locationFetcher(
+    rationale: String,
     config: LocationFetcher.Config.() -> Unit = { }
 ): LocationFetcher =
-    LocationFetcher(this@locationFetcher, LocationFetcher.Config().apply(config))
+    LocationFetcher(this, LocationFetcher.Config(rationale).apply(config))
 
-fun Context.locationFetcher(
+public fun Context.locationFetcher(
     owner: LifecycleOwner,
+    rationale: String,
     config: LocationFetcher.Config.() -> Unit = { }
 ): LocationFetcher =
-    LocationFetcher(this@locationFetcher, owner, LocationFetcher.Config().apply(config))
+    LocationFetcher(this, owner, LocationFetcher.Config(rationale).apply(config))
 
-fun LocationFetcher(
+public fun LocationFetcher(
     activity: ComponentActivity,
+    rationale: String,
     config: LocationFetcher.Config.() -> Unit = { }
 ): LocationFetcher =
-    LocationFetcher(activity, LocationFetcher.Config().apply(config))
+    LocationFetcher(activity, LocationFetcher.Config(rationale).apply(config))
 
-fun LocationFetcher(
+public fun LocationFetcher(
     context: Context,
     owner: LifecycleOwner,
+    rationale: String,
     config: LocationFetcher.Config.() -> Unit = { }
 ): LocationFetcher =
-    LocationFetcher(context, owner, LocationFetcher.Config().apply(config))
+    LocationFetcher(context, owner, LocationFetcher.Config(rationale).apply(config))
 
-fun LocationFetcher(
+public fun LocationFetcher(
     activity: ComponentActivity,
-    config: LocationFetcher.Config
+    config: LocationFetcher.Config,
 ): LocationFetcher = LocationFetcherImpl(activity, config.copy())
 
-fun LocationFetcher(
+public fun LocationFetcher(
     context: Context,
     owner: LifecycleOwner,
     config: LocationFetcher.Config
 ): LocationFetcher = LocationFetcherImpl(context, owner, config.copy())
 
-fun LocationSource(
+public fun LocationSource(
     scope: CoroutineScope,
     locationFetcher: LocationFetcher,
 ): LocationSource = LocationSourceImpl(scope, locationFetcher)

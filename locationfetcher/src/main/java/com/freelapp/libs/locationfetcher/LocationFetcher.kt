@@ -3,23 +3,27 @@ package com.freelapp.libs.locationfetcher
 import android.location.Location
 import android.location.LocationManager
 import androidx.lifecycle.Lifecycle
+import arrow.core.Either
+import arrow.core.Nel
 import com.google.android.gms.location.LocationRequest
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharedFlow
 
-interface LocationFetcher {
-    companion object {
+public interface LocationFetcher {
+    private companion object {
         private val locationRequest = LocationRequest.create()
         private const val FUSED_PROVIDER = "fused"
     }
 
-    val location: StateFlow<Location?>
-    val permissionStatus: StateFlow<PermissionStatus>
-    val settingsStatus: StateFlow<SettingsStatus>
+    public val location: SharedFlow<Either<Nel<Error>, Location>>
+    public val permissionStatus: SharedFlow<Boolean>
+    public val settingsStatus: SharedFlow<Boolean>
 
-    suspend fun requestLocationPermissions()
-    suspend fun requestEnableLocationSettings()
+    public suspend fun requestLocationPermissions()
+    public suspend fun requestEnableLocationSettings()
+    public fun shouldShowRationale(): Boolean
 
-    data class Config(
+    public data class Config(
+        var rationale: String,
         var fastestInterval: Long = locationRequest.fastestInterval,
         var interval: Long = locationRequest.interval,
         var maxWaitTime: Long = locationRequest.maxWaitTime,
@@ -28,18 +32,23 @@ interface LocationFetcher {
         var numUpdates: Int = locationRequest.numUpdates,
         var isWaitForAccurateLocation: Boolean = locationRequest.isWaitForAccurateLocation,
         var providers: List<Provider> = listOf(Provider.Fused, Provider.Network, Provider.GPS),
-        var requestLocationPermissionOnLifecycle: Lifecycle.State? = Lifecycle.State.STARTED,
-        var requestEnableLocationSettingsOnLifecycle: Lifecycle.State? = Lifecycle.State.STARTED,
         var debug: Boolean = false
     )
 
-    sealed class Provider(val value: String) {
-        object GPS : Provider(LocationManager.GPS_PROVIDER)
-        object Network : Provider(LocationManager.NETWORK_PROVIDER)
-        object Fused : Provider(FUSED_PROVIDER)
+    public sealed class Provider(public val value: String) {
+        public object GPS : Provider(LocationManager.GPS_PROVIDER)
+        public object Network : Provider(LocationManager.NETWORK_PROVIDER)
+        public object Fused : Provider(FUSED_PROVIDER)
     }
 
-    enum class PermissionStatus { UNKNOWN, ALLOWED, DENIED }
+    public sealed class Error {
+        public object PermissionDenied : Error()
+        public object SettingDisabled : Error()
+    }
 
-    enum class SettingsStatus { UNKNOWN, ENABLED, DISABLED }
+    @Deprecated("Replaced by LocationFetcher.Error.SettingDisabled")
+    public enum class PermissionStatus { UNKNOWN, ALLOWED, DENIED }
+
+    @Deprecated("Replaced by LocationFetcher.Error.SettingDisabled")
+    public enum class SettingsStatus { UNKNOWN, ENABLED, DISABLED }
 }
