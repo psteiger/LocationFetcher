@@ -29,12 +29,12 @@ class MyActivity : ComponentActivity() {
                     }
                     .launchIn(this)
 
-                // Optional, redundant as erros are already reported to 'location' flow.
+                // Optional, redundant as errors are already reported to 'location' flow.
                 locationFetcher.settingsStatus
                     .onEach { /* Location got enabled or disabled in device settings */ }
                     .launchIn(this)
 
-                // Optional, redundant as erros are already reported to 'location' flow.
+                // Optional, redundant as errors are already reported to 'location' flow.
                 locationFetcher.permissionStatus
                     .onEach { /* App allowed or disallowed to access the device's location. */ }
                     .launchIn(this)
@@ -111,14 +111,12 @@ dependencies {
 On any `ComponentActivity` or `Context` class, you can instantiate a `LocationFetcher` by calling the extension functions on `ComponentActivity` or `Context`:
 
 ```kotlin
-locationFetcher()
+locationFetcher("Rationale") { 
+    // optional configuration block
+}
 ```
 
-Alternatively, there are two `LocationFetcher()` method overloads: `LocationFetcher(Context, LifecycleOwner)` and `LocationFetcher(ComponentActivity)`
-
-```kotlin
-LocationFetcher(this)
-```
+Alternatively, there are some `LocationFetcher()` method overloads. You can see all public builders [in here](https://github.com/psteiger/LocationFetcher/blob/master/locationfetcher/src/main/java/com/freelapp/libs/locationfetcher/Builders.kt).
 
 If `LocationFetcher` is created with a `ComponentActivity`, it will be able to show dialogs to request the user to enable permission in Android settings and to allow the app to obtain the device's location. If `LocationFetcher` is created with a non-`ComponentActivity` `Context`, it won't be able to show dialogs.
 
