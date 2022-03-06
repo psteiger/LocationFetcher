@@ -10,6 +10,7 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.result.IntentSenderRequest
+import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
@@ -38,12 +39,12 @@ import kotlin.coroutines.resume
 internal class LocationFetcherImpl private constructor(
     owner: LifecycleOwner,
     private val applicationContext: Lazy<Context>,
-    private val config: LocationFetcher.Config
+    private val config: Lazy<LocationFetcher.Config>,
 ) : LocationFetcher {
 
     constructor(
         activity: ComponentActivity,
-        config: LocationFetcher.Config
+        config: Lazy<LocationFetcher.Config>
     ) : this(
         activity,
         lazy { activity.applicationContext },
@@ -51,9 +52,18 @@ internal class LocationFetcherImpl private constructor(
     )
 
     constructor(
+        fragment: Fragment,
+        config: Lazy<LocationFetcher.Config>
+    ) : this(
+        fragment,
+        lazy { fragment.requireContext().applicationContext },
+        config
+    )
+
+    constructor(
         context: Context,
         owner: LifecycleOwner,
-        config: LocationFetcher.Config
+        config: Lazy<LocationFetcher.Config>
     ) : this(
         owner,
         lazy { context.applicationContext },
@@ -68,14 +78,24 @@ internal class LocationFetcherImpl private constructor(
         it.createDataSources(applicationContext.value)
     }
     private val resolutionResolver by owner.lifecycle(Lifecycle.State.CREATED) { owner ->
-        (owner as? ComponentActivity)?.resolutionResolver { activityResult ->
+        val resolver = when (owner) {
+            is ComponentActivity -> owner::resolutionResolver
+            is Fragment -> owner::resolutionResolver
+            else -> null
+        }
+        resolver?.invoke { activityResult ->
             val resolved = Activity.RESULT_OK == activityResult.resultCode
             logd("Got setting resolution result $resolved")
             SETTINGS_STATUS.tryEmit(resolved)
         }
     }
     private val permissionRequester by owner.lifecycle(Lifecycle.State.CREATED) { owner ->
-        (owner as? ComponentActivity)?.permissionRequester { map ->
+        val requester = when (owner) {
+            is ComponentActivity -> owner::permissionRequester
+            is Fragment -> owner::permissionRequester
+            else -> null
+        }
+        requester?.invoke { map ->
             logd("Got permission result map $map")
             checkLocationPermissionsAllowed()
         }
@@ -84,7 +104,12 @@ internal class LocationFetcherImpl private constructor(
         {
             LOCATION_PERMISSIONS.any {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    (owner as? ComponentActivity)?.shouldShowRequestPermissionRationale(it) ?: false
+                    val rationaleFunction = when (owner) {
+                        is ComponentActivity -> owner::shouldShowRequestPermissionRationale
+                        is Fragment -> owner::shouldShowRequestPermissionRationale
+                        else -> null
+                    }
+                    rationaleFunction?.invoke(it) ?: false
                 } else {
                     false
                 }
@@ -92,18 +117,25 @@ internal class LocationFetcherImpl private constructor(
         }
     }
     private val rationaleDialogBuilder by owner.lifecycle(Lifecycle.State.CREATED) { owner ->
-        (owner as? Activity)?.let {
-            AlertDialog.Builder(it).setMessage(config.rationale)
+        val context = when (owner) {
+            is Activity -> owner
+            is Fragment -> owner.requireContext()
+            else -> null
+        }
+        context?.let {
+            AlertDialog.Builder(it).setMessage(config.value.rationale)
         }
     }
-    private val locationRequest = LocationRequest.create().apply {
-        fastestInterval = config.fastestInterval
-        interval = config.interval
-        maxWaitTime = config.maxWaitTime
-        priority = config.priority
-        smallestDisplacement = config.smallestDisplacement
-        numUpdates = config.numUpdates
-        isWaitForAccurateLocation = config.isWaitForAccurateLocation
+    private val locationRequest by lazy {
+        LocationRequest.create().apply {
+            fastestInterval = config.value.fastestInterval
+            interval = config.value.interval
+            maxWaitTime = config.value.maxWaitTime
+            priority = config.value.priority
+            smallestDisplacement = config.value.smallestDisplacement
+            numUpdates = config.value.numUpdates
+            isWaitForAccurateLocation = config.value.isWaitForAccurateLocation
+        }
     }
     private val lastUpdateTimestamp = AtomicLong(0L)
 
@@ -132,7 +164,7 @@ internal class LocationFetcherImpl private constructor(
                                     .onEach { logd("apiHolder=$it") }
                                     .filterNotNull()
                                     .flatMapLatest {
-                                        config.providers.asLocationFlow(it, locationRequest)
+                                        config.value.providers.asLocationFlow(it, locationRequest)
                                     }
                                     .filter { it.isValid() }
                                     .onEach { lastUpdateTimestamp.set(SystemClock.elapsedRealtime()) }
@@ -220,7 +252,7 @@ internal class LocationFetcherImpl private constructor(
 
     @Suppress("NOTHING_TO_INLINE")
     private inline fun logd(msg: String, e: Throwable? = null) {
-        if (config.debug) Log.d(TAG, msg, e)
+        if (config.value.debug) Log.d(TAG, msg, e)
     }
 
     companion object {

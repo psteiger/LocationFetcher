@@ -5,6 +5,7 @@ import androidx.activity.result.ActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.fragment.app.Fragment
 
 internal typealias ResolutionResolver = ActivityResultLauncher<IntentSenderRequest>
 internal typealias PermissionRequester = ActivityResultLauncher<Array<String>>
@@ -17,6 +18,20 @@ internal inline fun ComponentActivity.resolutionResolver(
     }
 
 internal inline fun ComponentActivity.permissionRequester(
+    crossinline block: (Map<String, Boolean>) -> Unit
+): ActivityResultLauncher<Array<String>> =
+    registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        block(it.toMap())
+    }
+
+internal inline fun Fragment.resolutionResolver(
+    crossinline block: (ActivityResult) -> Unit
+): ActivityResultLauncher<IntentSenderRequest> =
+    registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
+        block(it)
+    }
+
+internal inline fun Fragment.permissionRequester(
     crossinline block: (Map<String, Boolean>) -> Unit
 ): ActivityResultLauncher<Array<String>> =
     registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
