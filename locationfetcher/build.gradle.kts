@@ -8,7 +8,7 @@ plugins {
 apply(from = "$rootDir/scripts/publish-root.gradle.kts")
 
 group = "app.freel"
-version = "8.1.0"
+version = "8.1.1"
 
 android {
     compileSdk = 31
@@ -42,7 +42,7 @@ afterEvaluate {
             register<MavenPublication>("release") {
                 from(components["release"])
                 groupId = "app.freel"
-                version = "8.1.0"
+                version = "8.1.1"
                 artifactId = project.name
                 artifact(sourcesJar).apply {
                     classifier = "sources"
@@ -67,7 +67,7 @@ afterEvaluate {
                     scm {
                         connection.set("scm:git:github.com/psteiger/LocationFetcher/LocationFetcher.git")
                         developerConnection.set("scm:git:ssh://github.com/psteiger/LocationFetcher/LocationFetcher.git")
-                        url.set("https://github.com/LocationFetcher/psteiger/tree/master")
+                        url.set("https://github.com/psteiger/LocationFetcher/tree/master")
                     }
                 }
             }

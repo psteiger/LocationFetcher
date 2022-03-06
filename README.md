@@ -93,14 +93,14 @@ On app-level `build.gradle`, add dependency:
 Groovy:
 ```groovy
 dependencies {
-  implementation 'app.freel:locationfetcher:8.1.0'
+  implementation 'app.freel:locationfetcher:8.1.1'
 }
 ```
 
 Kotlin:
 ```kotlin
 dependencies {
-  implementation("app.freel:locationfetcher:8.1.0")
+  implementation("app.freel:locationfetcher:8.1.1")
 }
 ```
 
