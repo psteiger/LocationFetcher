@@ -1,7 +1,8 @@
 plugins {
-    id("com.android.library") version "7.1.0-beta02" apply false
-    kotlin("android") version "1.6.0-RC2" apply false
+    id("com.android.library") version "7.1.2" apply false
+    kotlin("android") version "1.6.10" apply false
     id("io.github.gradle-nexus.publish-plugin") version "1.1.0"
+    id("org.jetbrains.kotlinx.binary-compatibility-validator") version "0.8.0"
 }
 
 tasks.register<Delete>("clean") {

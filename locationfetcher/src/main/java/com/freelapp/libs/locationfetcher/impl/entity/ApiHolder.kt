@@ -4,6 +4,7 @@ import android.content.Context
 import android.location.LocationManager
 import androidx.activity.ComponentActivity
 import androidx.core.content.ContextCompat
+import androidx.fragment.app.Fragment
 import androidx.lifecycle.LifecycleOwner
 import com.freelapp.libs.locationfetcher.impl.dsl.locationSettingsRequest
 import com.freelapp.libs.locationfetcher.impl.util.awaitComplete
@@ -19,6 +20,7 @@ internal suspend inline operator fun <T> Flow<ApiHolder?>.invoke(block: ApiHolde
 internal fun LifecycleOwner.createDataSources(context: Context): ApiHolder =
     when (this) {
         is ComponentActivity -> createDataSources()
+        is Fragment -> requireActivity().createDataSources()
         else -> context.createDataSources()
     }
 
