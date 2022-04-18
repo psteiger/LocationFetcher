@@ -142,7 +142,21 @@ internal class LocationFetcherImpl private constructor(
         }
     }
 
-    private suspend fun CoroutineScope.launchLocationFlow() {
+    private fun CoroutineScope.launchLocationFlow() {
+        LOCATION.subscriptionCount
+            .map { count -> count > 0 } // map count into active/inactive flag
+            .distinctUntilChanged() // only react to true<->false changes
+            .flatMapLatest { isActive ->
+                when {
+                    isActive -> internalLocationFlow
+                    else -> emptyFlow()
+                }
+            }
+            .onEach { LOCATION.tryEmit(it.toEither()) }
+            .launchIn(this)
+    }
+
+    private val internalLocationFlow = run {
         val perms = PERMISSION_STATUS
             .onSubscription {
                 if (!checkLocationPermissionsAllowed()) {
@@ -163,8 +177,6 @@ internal class LocationFetcherImpl private constructor(
             .onEach { logd("API holder=$it") }
             .flatMapLatestRight { config.value.providers.asLocationFlow(it, locationRequest) }
             .onEach { logd("Location=$it") }
-            .onEach { LOCATION.tryEmit(it.toEither()) }
-            .launchIn(this)
     }
 
     override suspend fun requestLocationPermissions() {

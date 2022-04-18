@@ -21,12 +21,10 @@ class MainFragment : Fragment() {
         fun newInstance() = MainFragment()
     }
 
-    private val locationFetcher by lazy {
-        requireContext().applicationContext.locationFetcher(this, "Rationale") {
-            debug = true
-            interval = 5.seconds
-            priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-        }
+    private val locationFetcher = locationFetcher("Rationale") {
+        debug = true
+        interval = 5.seconds
+        priority = LocationRequest.PRIORITY_HIGH_ACCURACY
     }
     private lateinit var viewModel: MainViewModel
 
