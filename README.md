@@ -23,7 +23,7 @@ class MyActivity : ComponentActivity() {
                         errorsOrLocation.tap { location ->
                             // Got location
                         }.tapLeft { errors ->
-                            // Handle errors (no permission/permission settings disabled).
+                            // Handle errors (no permission/location settings disabled).
                             // Note that this library will automatically try to resolve errors.
                         }
                     }
