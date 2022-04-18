@@ -4,9 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
-import android.location.Location
 import android.os.Build
-import android.os.SystemClock
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.result.IntentSenderRequest
@@ -16,8 +14,6 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import arrow.core.None
-import arrow.core.invalid
-import arrow.core.validNel
 import arrow.core.zip
 import com.freelapp.libs.locationfetcher.LocationFetcher
 import com.freelapp.libs.locationfetcher.impl.entity.createDataSources
@@ -30,10 +26,10 @@ import com.freelapp.libs.locationfetcher.impl.util.*
 import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationSettingsStatusCodes
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
-import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.resume
 
 internal class LocationFetcherImpl private constructor(
@@ -128,55 +124,47 @@ internal class LocationFetcherImpl private constructor(
     }
     private val locationRequest by lazy {
         LocationRequest.create().apply {
-            fastestInterval = config.value.fastestInterval
-            interval = config.value.interval
-            maxWaitTime = config.value.maxWaitTime
-            priority = config.value.priority
-            smallestDisplacement = config.value.smallestDisplacement
-            numUpdates = config.value.numUpdates
-            isWaitForAccurateLocation = config.value.isWaitForAccurateLocation
+            config.value.fastestInterval?.let { fastestInterval = it.inWholeMilliseconds }
+            config.value.interval?.let { interval = it.inWholeMilliseconds }
+            config.value.maxWaitTime?.let { maxWaitTime = it.inWholeMilliseconds }
+            config.value.priority?.let { priority = it }
+            config.value.smallestDisplacement?.let { smallestDisplacement = it }
+            config.value.numUpdates?.let { numUpdates = it }
+            config.value.isWaitForAccurateLocation?.let { isWaitForAccurateLocation = it }
         }
     }
-    private val lastUpdateTimestamp = AtomicLong(0L)
 
     init {
         owner.lifecycleScope.launch {
             owner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                val perms = PERMISSION_STATUS
-                    .onSubscription {
-                        if (!checkLocationPermissionsAllowed()) {
-                            if (shouldShowRationale()) showRationale()
-                            requestLocationPermissions()
-                        }
-                    }
-                    .asValidatedNelFlow(LocationFetcher.Error.PermissionDenied)
-                val settings = SETTINGS_STATUS
-                    .onSubscription { requestEnableLocationSettings() }
-                    .asValidatedNelFlow(LocationFetcher.Error.SettingDisabled)
-                perms
-                    .combine(settings) { perm, setting -> perm to setting }
-                    .mapLatest { (perm, setting) -> perm.zip(setting) { _, _ -> None } }
-                    .flatMapLatest { validatedNel ->
-                        validatedNel.fold(
-                            { errors -> flowOf(errors.invalid()) },
-                            { _ ->
-                                apiHolder
-                                    .onEach { logd("apiHolder=$it") }
-                                    .filterNotNull()
-                                    .flatMapLatest {
-                                        config.value.providers.asLocationFlow(it, locationRequest)
-                                    }
-                                    .filter { it.isValid() }
-                                    .onEach { lastUpdateTimestamp.set(SystemClock.elapsedRealtime()) }
-                                    .map { it.validNel() }
-                            }
-                        )
-                    }
-                    .onEach { logd("location=$it") }
-                    .onEach { LOCATION.tryEmit(it.toEither()) }
-                    .launchIn(this)
+                launchLocationFlow()
             }
         }
+    }
+
+    private suspend fun CoroutineScope.launchLocationFlow() {
+        val perms = PERMISSION_STATUS
+            .onSubscription {
+                if (!checkLocationPermissionsAllowed()) {
+                    if (shouldShowRationale()) showRationale()
+                    requestLocationPermissions()
+                }
+            }
+            .asValidatedNelFlow(LocationFetcher.Error.PermissionDenied)
+        val settings = SETTINGS_STATUS
+            .onSubscription { requestEnableLocationSettings() }
+            .asValidatedNelFlow(LocationFetcher.Error.SettingDisabled)
+        combine(perms, settings, ::Pair)
+            .mapLatest { (perm, setting) ->
+                perm.zip(setting) { _, _ -> None }
+            }
+            .onEach { logd("Environment issues (permission/settings)=$it") }
+            .flatMapLatestRight { apiHolder.filterNotNull() }
+            .onEach { logd("API holder=$it") }
+            .flatMapLatestRight { config.value.providers.asLocationFlow(it, locationRequest) }
+            .onEach { logd("Location=$it") }
+            .onEach { LOCATION.tryEmit(it.toEither()) }
+            .launchIn(this)
     }
 
     override suspend fun requestLocationPermissions() {
@@ -213,22 +201,6 @@ internal class LocationFetcherImpl private constructor(
         applicationContext.value.hasPermissions(LOCATION_PERMISSIONS).also {
             PERMISSION_STATUS.tryEmit(it)
         }
-
-    private fun Location.isValid(): Boolean {
-        val lastLocation = location.replayCache.lastOrNull()?.orNull() ?: return true
-        val interval = locationRequest.interval
-        val timeElapsed = SystemClock.elapsedRealtime() - lastUpdateTimestamp.get()
-        val displacement = distanceTo(lastLocation)
-        val smallestDisplacement = locationRequest.smallestDisplacement
-        val isValid = timeElapsed > interval && displacement > smallestDisplacement
-        logd(
-            "isValid: lastLocation=$lastLocation, newLocation=$this" +
-                    ", interval=$interval, timeElapsed=$timeElapsed" +
-                    ", displacement=$displacement, smallestDisplacement=$smallestDisplacement" +
-                    ", isValid=$isValid"
-        )
-        return isValid
-    }
 
     private fun requestPermissions() {
         permissionRequester?.launch(LOCATION_PERMISSIONS)

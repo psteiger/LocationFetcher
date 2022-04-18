@@ -2,15 +2,13 @@ package com.freelapp.libs.locationfetcher
 
 import android.location.Location
 import android.location.LocationManager
-import androidx.lifecycle.Lifecycle
 import arrow.core.Either
 import arrow.core.Nel
-import com.google.android.gms.location.LocationRequest
 import kotlinx.coroutines.flow.SharedFlow
+import kotlin.time.Duration
 
 public interface LocationFetcher {
     private companion object {
-        private val locationRequest = LocationRequest.create()
         private const val FUSED_PROVIDER = "fused"
     }
 
@@ -24,14 +22,14 @@ public interface LocationFetcher {
 
     public data class Config(
         var rationale: String,
-        var fastestInterval: Long = locationRequest.fastestInterval,
-        var interval: Long = locationRequest.interval,
-        var maxWaitTime: Long = locationRequest.maxWaitTime,
-        var priority: Int = locationRequest.priority,
-        var smallestDisplacement: Float = locationRequest.smallestDisplacement,
-        var numUpdates: Int = locationRequest.numUpdates,
-        var isWaitForAccurateLocation: Boolean = locationRequest.isWaitForAccurateLocation,
-        var providers: List<Provider> = listOf(Provider.Fused, Provider.Network, Provider.GPS),
+        var fastestInterval: Duration? = null,
+        var interval: Duration? = null,
+        var maxWaitTime: Duration? = null,
+        var priority: Int? = null,
+        var smallestDisplacement: Float? = null,
+        var numUpdates: Int? = null,
+        var isWaitForAccurateLocation: Boolean? = null,
+        var providers: List<Provider> = listOf(Provider.Fused),
         var debug: Boolean = false
     )
 

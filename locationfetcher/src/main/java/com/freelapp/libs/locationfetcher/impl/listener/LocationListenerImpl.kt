@@ -9,6 +9,7 @@ internal class LocationListenerImpl(private val callback: (Location) -> Unit) : 
         callback(location)
     }
 
+    @Deprecated("Deprecated in Java")
     override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {
         // For compatibility with API < Q
     }

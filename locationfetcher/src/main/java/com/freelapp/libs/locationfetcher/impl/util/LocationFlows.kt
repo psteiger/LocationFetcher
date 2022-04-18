@@ -90,21 +90,21 @@ private fun LocationManager.asFlow(
     provider: LocationFetcher.Provider,
     looper: Looper
 ) = callbackFlow {
-        val listener = LocationListenerImpl { trySend(it) }
-        try {
-            requestLocationUpdates(
-                provider.value,
-                request.interval,
-                request.smallestDisplacement,
-                listener,
-                looper
-            )
-        } catch (e: SecurityException) {
-            Log.d(TAG, "LocationManager.asFlow: exception", e)
-            close(e)
-        }
-        awaitClose { removeUpdates(listener) }
+    val listener = LocationListenerImpl { trySend(it) }
+    try {
+        requestLocationUpdates(
+            provider.value,
+            request.interval,
+            request.smallestDisplacement,
+            listener,
+            looper
+        )
+    } catch (e: SecurityException) {
+        Log.d(TAG, "LocationManager.asFlow: exception", e)
+        close(e)
     }
+    awaitClose { removeUpdates(listener) }
+}
 
 private fun FusedLocationProviderClient.asFlow(
     request: LocationRequest,

@@ -14,3 +14,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "LocationFetcher"
 include(":locationfetcher")
+include(":app")
