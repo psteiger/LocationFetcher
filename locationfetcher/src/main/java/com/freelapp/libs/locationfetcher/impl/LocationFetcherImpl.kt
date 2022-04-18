@@ -11,14 +11,12 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
-import arrow.core.None
-import arrow.core.zip
+import arrow.core.*
 import com.freelapp.libs.locationfetcher.LocationFetcher
 import com.freelapp.libs.locationfetcher.impl.entity.createDataSources
 import com.freelapp.libs.locationfetcher.impl.entity.invoke
-import com.freelapp.libs.locationfetcher.impl.singleton.LOCATION
 import com.freelapp.libs.locationfetcher.impl.singleton.PERMISSION_STATUS
 import com.freelapp.libs.locationfetcher.impl.singleton.SETTINGS_STATUS
 import com.freelapp.libs.locationfetcher.impl.singleton.TAG
@@ -26,9 +24,7 @@ import com.freelapp.libs.locationfetcher.impl.util.*
 import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationSettingsStatusCodes
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
@@ -66,7 +62,6 @@ internal class LocationFetcherImpl private constructor(
         config
     )
 
-    override val location = LOCATION.asSharedFlow()
     override val permissionStatus = PERMISSION_STATUS.asSharedFlow()
     override val settingsStatus = SETTINGS_STATUS.asSharedFlow()
 
@@ -74,41 +69,22 @@ internal class LocationFetcherImpl private constructor(
         it.createDataSources(applicationContext.value)
     }
     private val resolutionResolver by owner.lifecycle(Lifecycle.State.CREATED) { owner ->
-        val resolver = when (owner) {
-            is ComponentActivity -> owner::resolutionResolver
-            is Fragment -> owner::resolutionResolver
-            else -> null
-        }
-        resolver?.invoke { activityResult ->
-            val resolved = Activity.RESULT_OK == activityResult.resultCode
+        owner.resolutionResolver { result ->
+            val resolved = result.resolved
             logd("Got setting resolution result $resolved")
             SETTINGS_STATUS.tryEmit(resolved)
         }
     }
     private val permissionRequester by owner.lifecycle(Lifecycle.State.CREATED) { owner ->
-        val requester = when (owner) {
-            is ComponentActivity -> owner::permissionRequester
-            is Fragment -> owner::permissionRequester
-            else -> null
-        }
-        requester?.invoke { map ->
+        owner.permissionRequester { map ->
             logd("Got permission result map $map")
             checkLocationPermissionsAllowed()
         }
     }
     private val shouldShowPermissionRationale by owner.lifecycle(Lifecycle.State.CREATED) { owner ->
         {
-            LOCATION_PERMISSIONS.any {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    val rationaleFunction = when (owner) {
-                        is ComponentActivity -> owner::shouldShowRequestPermissionRationale
-                        is Fragment -> owner::shouldShowRequestPermissionRationale
-                        else -> null
-                    }
-                    rationaleFunction?.invoke(it) ?: false
-                } else {
-                    false
-                }
+            LOCATION_PERMISSIONS.any { permission ->
+                owner.shouldShowRequestPermissionRationale(permission)
             }
         }
     }
@@ -134,29 +110,7 @@ internal class LocationFetcherImpl private constructor(
         }
     }
 
-    init {
-        owner.lifecycleScope.launch {
-            owner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launchLocationFlow()
-            }
-        }
-    }
-
-    private fun CoroutineScope.launchLocationFlow() {
-        LOCATION.subscriptionCount
-            .map { count -> count > 0 } // map count into active/inactive flag
-            .distinctUntilChanged() // only react to true<->false changes
-            .flatMapLatest { isActive ->
-                when {
-                    isActive -> internalLocationFlow
-                    else -> emptyFlow()
-                }
-            }
-            .onEach { LOCATION.tryEmit(it.toEither()) }
-            .launchIn(this)
-    }
-
-    private val internalLocationFlow = run {
+    override val location = run {
         val perms = PERMISSION_STATUS
             .onSubscription {
                 if (!checkLocationPermissionsAllowed()) {
@@ -165,18 +119,26 @@ internal class LocationFetcherImpl private constructor(
                 }
             }
             .asValidatedNelFlow(LocationFetcher.Error.PermissionDenied)
+            .distinctUntilChanged()
         val settings = SETTINGS_STATUS
             .onSubscription { requestEnableLocationSettings() }
             .asValidatedNelFlow(LocationFetcher.Error.SettingDisabled)
+            .distinctUntilChanged()
         combine(perms, settings, ::Pair)
             .mapLatest { (perm, setting) ->
                 perm.zip(setting) { _, _ -> None }
+                    .toEither()
             }
-            .onEach { logd("Environment issues (permission/settings)=$it") }
-            .flatMapLatestRight { apiHolder.filterNotNull() }
-            .onEach { logd("API holder=$it") }
-            .flatMapLatestRight { config.value.providers.asLocationFlow(it, locationRequest) }
-            .onEach { logd("Location=$it") }
+            .onEach { logd("Environmental issues (missing permission/disabled settings): $it") }
+            .flatMapLatestRight {
+                apiHolder.filterNotNull()
+                    .onEach { logd("API holder: $it") }
+                    .flatMapLatest { config.value.providers.asLocationFlow(it, locationRequest) }
+                    .onEach { logd("Location: $it") }
+            }
+            .onCompletion { logd("Completing flow with exception=$it") }
+            .flowWithLifecycle(owner.lifecycle, Lifecycle.State.STARTED)
+            .shareIn(owner.lifecycleScope, SharingStarted.WhileSubscribed(), 1)
     }
 
     override suspend fun requestLocationPermissions() {
@@ -246,3 +208,13 @@ internal class LocationFetcherImpl private constructor(
         )
     }
 }
+
+private fun LifecycleOwner.shouldShowRequestPermissionRationale(permission: String) =
+    when {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> when (this) {
+            is Activity -> shouldShowRequestPermissionRationale(permission)
+            is Fragment -> shouldShowRequestPermissionRationale(permission)
+            else -> false
+        }
+        else -> false
+    }

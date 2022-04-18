@@ -8,11 +8,11 @@ internal fun <T> Flow<Boolean>.asValidatedNelFlow(invalid: T) = mapLatest {
     else invalid.invalidNel()
 }
 
-internal inline fun <E, A, R> Flow<ValidatedNel<E, A>>.flatMapLatestRight(
-    crossinline transform: (A) -> Flow<R>
-) = flatMapLatest { validatedNel ->
-    validatedNel.fold(
-        { e -> flowOf(e.invalid()) },
-        { a -> transform(a).map { it.validNel() }}
+internal inline fun <A, B, R> Flow<Either<A, B>>.flatMapLatestRight(
+    crossinline transform: (B) -> Flow<R>
+) = flatMapLatest { either ->
+    either.fold(
+        { e -> flowOf(e.left()) },
+        { a -> transform(a).map { it.right() }}
     )
 }
