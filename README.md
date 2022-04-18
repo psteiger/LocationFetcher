@@ -10,7 +10,8 @@ Building location-aware Android apps can be a bit tricky. This library makes it 
 class MyActivity : ComponentActivity() {
 
     private val locationFetcher = locationFetcher({ getString(R.string.location_rationale) }) {
-        // custom configuration block
+        interval = 5.seconds
+        priority = LocationRequest.PRIORITY_HIGH_ACCURACY
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -22,9 +23,8 @@ class MyActivity : ComponentActivity() {
                         errorsOrLocation.tap { location ->
                             // Got location
                         }.tapLeft { errors ->
-                            // Optional. Handle errors. This is optional because errors 
-                            // (no location permission, or setting disabled), will try to be
-                            // automatically handled by lib.
+                            // Handle errors (no permission/permission settings disabled).
+                            // Note that this library will automatically try to resolve errors.
                         }
                     }
                     .launchIn(this)
@@ -90,17 +90,9 @@ allprojects {
 
 On app-level `build.gradle`, add dependency:
 
-Groovy:
-```groovy
-dependencies {
-  implementation 'app.freel:locationfetcher:8.1.1'
-}
-```
-
-Kotlin:
 ```kotlin
 dependencies {
-  implementation("app.freel:locationfetcher:8.1.1")
+  implementation("app.freel:locationfetcher:8.2.0")
 }
 ```
 
@@ -149,13 +141,13 @@ Results will be delivered on the aforementioned flows.
 
 `LocationFetcher` supports the following configurations for location fetching when creating the component:
 
-(Note: for GPS and Network providers, only `interval` and `smallestDisplacement` are used. If you want to use all options, limit providers to `LocationRequest.Provider.Fused`)
+(Note: for GPS and Network providers, only `interval` and `smallestDisplacement` are used. If you want to use all options, limit providers to `LocationRequest.Provider.Fused`, which is the default)
 
 ```kotlin
 locationFetcher("We need your permission to use your location for showing nearby items") {
-    fastestInterval = 5000
-    interval = 15000
-    maxWaitTime = 100000
+    fastestInterval = 5.seconds
+    interval = 15.seconds
+    maxWaitTime = 2.minutes
     priority = LocationRequest.PRIORITY_HIGH_ACCURACY
     smallestDisplacement = 50f
     isWaitForAccurateLocation = false
@@ -172,11 +164,11 @@ locationFetcher("We need your permission to use your location for showing nearby
 Alternatively, you might prefer to create a standalone configuration instance. It is useful, for example, when sharing a common configuration between multiple `LocationFetcher` instances:
 
 ```kotlin
-val config = LocationFetcher.config(
+val config = LocationFetcher.Config(
     rationale = "We need your permission to use your location for showing nearby items",
-    fastestInterval = 5000,
-    interval = 15000,
-    maxWaitTime = 100000,
+    fastestInterval = 5.seconds,
+    interval = 15.seconds,
+    maxWaitTime = 2.minutes,
     priority = LocationRequest.PRIORITY_HIGH_ACCURACY,
     smallestDisplacement = 50f,
     isWaitForAccurateLocation = false,
