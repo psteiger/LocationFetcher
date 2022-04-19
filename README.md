@@ -92,7 +92,7 @@ On app-level `build.gradle`, add dependency:
 
 ```kotlin
 dependencies {
-  implementation("app.freel:locationfetcher:8.2.1")
+  implementation("app.freel:locationfetcher:8.2.2")
 }
 ```
 
