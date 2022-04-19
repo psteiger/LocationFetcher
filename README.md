@@ -16,30 +16,17 @@ class MyActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                locationFetcher.location
-                    .onEach { errorsOrLocation ->
-                        errorsOrLocation.tap { location ->
-                            // Got location
-                        }.tapLeft { errors ->
-                            // Handle errors (no permission/location settings disabled).
-                            // Note that this library will automatically try to resolve errors.
-                        }
-                    }
-                    .launchIn(this)
-
-                // Optional, redundant as errors are already reported to 'location' flow.
-                locationFetcher.settingsStatus
-                    .onEach { /* Location got enabled or disabled in device settings */ }
-                    .launchIn(this)
-
-                // Optional, redundant as errors are already reported to 'location' flow.
-                locationFetcher.permissionStatus
-                    .onEach { /* App allowed or disallowed to access the device's location. */ }
-                    .launchIn(this)
+        locationFetcher.location
+            .onEach { errorsOrLocation ->
+                errorsOrLocation.tap { location ->
+                    // Got location
+                }.tapLeft { errors ->
+                    // Handle errors (no permission/location settings disabled).
+                    // Note that this library will automatically try to resolve errors.
+                }
             }
-        }
+            .flowWithLifecycle(Lifecycle.State.STARTED)
+            .launchIn(this)
     }
 }
 ```
