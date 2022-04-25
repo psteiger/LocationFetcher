@@ -24,14 +24,14 @@ internal fun LifecycleOwner.createDataSources(context: Context): ApiHolder =
         else -> context.createDataSources()
     }
 
-internal fun ComponentActivity.createDataSources(): ApiHolder =
+private fun ComponentActivity.createDataSources(): ApiHolder =
     ApiHolder(
         ContextCompat.getSystemService(this, LocationManager::class.java) as LocationManager,
         LocationServices.getFusedLocationProviderClient(this),
         LocationServices.getSettingsClient(this)
     )
 
-internal fun Context.createDataSources(): ApiHolder =
+private fun Context.createDataSources(): ApiHolder =
     ApiHolder(
         ContextCompat.getSystemService(this, LocationManager::class.java) as LocationManager,
         LocationServices.getFusedLocationProviderClient(this),
