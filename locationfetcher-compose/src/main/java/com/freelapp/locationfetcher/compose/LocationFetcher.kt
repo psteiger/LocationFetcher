@@ -3,6 +3,10 @@ package com.freelapp.locationfetcher.compose
 import android.annotation.SuppressLint
 import android.location.Location
 import android.os.Looper
+import android.util.Log
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -11,18 +15,30 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.gms.location.*
 import kotlinx.coroutines.awaitCancellation
 
+/**
+ * Location is delivered to all children composable by [LocalLocationFetcher.current].
+ */
 @Composable
 public fun LocationFetcher(
     requestConfig: LocationRequest.() -> Unit = {},
+    rationaleUi: RationaleUi = DefaultRationaleUi,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
-    var hasPermission by remember { mutableStateOf(context.checkLocationPermissionsAllowed()) }
-    PermissionRequest(hasPermission) {
-        hasPermission = it
+    var hasPermissions by remember { mutableStateOf(context.hasLocationPermissions()) }
+    var rationaleDismissed by remember { mutableStateOf(false) }
+    val setHasPermissions: (Boolean) -> Unit = {
+        rationaleDismissed = false
+        hasPermissions = it
     }
-    if (hasPermission) {
-        val locationRequest = LocationRequest.create().apply(requestConfig)
+    PermissionRequest(
+        hasPermissions = hasPermissions,
+        setHasPermissions = setHasPermissions,
+        rationaleDismissed = rationaleDismissed,
+        rationale = { rationaleUi { rationaleDismissed = true } },
+    )
+    if (hasPermissions) {
+        val locationRequest = rememberLocationRequest(requestConfig)
         SettingsRequest(locationRequest)
         LocationProvider(locationRequest, content)
     }
@@ -36,13 +52,33 @@ public object LocalLocationFetcher {
         @Composable
         get() = LocalLocationFetcher.current
 
-    public infix fun provides(
+    internal infix fun provides(
         location: Location?
     ): ProvidedValue<Location?> =
         LocalLocationFetcher.provides(location)
 }
 
+public typealias RationaleUi = @Composable (onRationaleDismissed: () -> Unit) -> Unit
+
 // ---- Implementation ----
+
+private val DefaultRationaleUi: RationaleUi = { onRationaleDismissed ->
+    AlertDialog(
+        onDismissRequest = { onRationaleDismissed() },
+        confirmButton = {
+            Button(onClick = { onRationaleDismissed() }) {
+                Text(text = "Ok")
+            }
+        }
+    )
+}
+
+@Composable
+private fun rememberLocationRequest(
+    requestConfig: LocationRequest.() -> Unit
+) = remember(requestConfig) {
+    LocationRequest.create().apply(requestConfig)
+}
 
 @SuppressLint("MissingPermission")
 @Composable
