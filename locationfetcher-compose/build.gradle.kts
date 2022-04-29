@@ -8,7 +8,7 @@ plugins {
 apply(from = "$rootDir/scripts/publish-root.gradle.kts")
 
 group = "app.freel"
-version = "8.2.5"
+version = "8.2.7"
 
 android {
     compileSdk = 32
@@ -23,7 +23,6 @@ android {
     kotlinOptions {
         freeCompilerArgs += listOf(
             "-Xexplicit-api=strict",
-            "-Xopt-in=kotlinx.coroutines.ExperimentalCoroutinesApi"
         )
         jvmTarget = "1.8"
         languageVersion = "1.6"
@@ -48,7 +47,7 @@ afterEvaluate {
             register<MavenPublication>("release") {
                 from(components["release"])
                 groupId = "app.freel"
-                version = "8.2.5"
+                version = "8.2.7"
                 artifactId = "locationfetcher-compose"
                 artifact(sourcesJar).apply {
                     classifier = "sources"

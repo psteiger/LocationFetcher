@@ -22,7 +22,8 @@ class MainActivity : AppCompatActivity() {
                     interval = 15.seconds.inWholeMilliseconds
                     fastestInterval = 15.seconds.inWholeMilliseconds
                     priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-                }
+                },
+                rationale = "We need your location for searching restaurants nearby."
             ) {
                 val location = LocalLocationFetcher.current
                 Log.d(TAG, "onCreate: $location")
