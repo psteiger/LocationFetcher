@@ -52,7 +52,7 @@ public data class LocationState(
  *             fastestInterval = 15.seconds.inWholeMilliseconds
  *             priority = LocationRequest.PRIORITY_HIGH_ACCURACY
  *         },
- *         rationale = "We need your location for searching restaurants nearby."
+ *         rationale = "We need your location for finding nearby restaurants."
  *     ) {
  *         val (locationResult, settingEnabled, permissionsGranted) = LocalLocationFetcher.current
  *         when (locationResult) {

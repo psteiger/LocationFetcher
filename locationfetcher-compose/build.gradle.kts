@@ -8,7 +8,7 @@ plugins {
 apply(from = "$rootDir/scripts/publish-root.gradle.kts")
 
 group = "app.freel"
-version = "8.2.8"
+version = "9.0.0"
 
 android {
     compileSdk = 32
@@ -50,7 +50,7 @@ afterEvaluate {
             register<MavenPublication>("release") {
                 from(components["release"])
                 groupId = "app.freel"
-                version = "8.2.8"
+                version = "9.0.0"
                 artifactId = "locationfetcher-compose"
                 artifact(sourcesJar).apply {
                     classifier = "sources"
