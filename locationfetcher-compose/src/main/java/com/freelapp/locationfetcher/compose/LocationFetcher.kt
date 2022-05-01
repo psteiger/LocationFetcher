@@ -9,22 +9,37 @@ import androidx.compose.ui.res.stringResource
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 
+/**
+ * An aggregate of the [last locations][locationResult],
+ * [location setting status][settingEnabled], and [permission status][permissionsGranted], as
+ * reported by [LocationFetcher].
+ */
 @Immutable
 public data class LocationState(
+    /** Latest location results, or null if no locations were reported lately. */
     val locationResult: LocationResult?,
+    /** Whether location setting is enabled, or null if status is unknown. */
     val settingEnabled: Boolean?,
+    /** Whether location permissions are granted. */
     val permissionsGranted: Boolean
 )
 
 /**
  * Obtain periodic location updates from the device. The [LocationResult] is delivered to all
- * children composable by [LocalLocationFetcher.current].
+ * children composable by a [CompositionLocal]: [LocalLocationFetcher.current].
  *
  * [LocationRequest] configurations can be set by [requestConfig].
  *
- * A [Material3 AlertDialog][AlertDialog] will be used to show the permission [rationale] if needed.
- * If you prefer to use a custom composable instead, see the overload that takes
- * in a rationale UI instead of a rationale String.
+ * If the location permissions are not granted by the user, this [Composable] will request them
+ * to the user. If the Android framework tells that a [rationale] for requesting the permissions
+ * must be presented, a [Material3 AlertDialog][AlertDialog] will be used.
+ *
+ * If you prefer to use a custom [Composable] for showing the [rationale] instead, see the overload
+ * that takes in a rationale UI instead of a rationale String.
+ *
+ * Once location permissions are granted by the user, this [Composable] will check whether location
+ * settings are enabled in the Android settings, asking the user to enable them in case they're
+ * disabled. This UI is not customizable.
  *
  * Example:
  *
@@ -71,16 +86,22 @@ public fun LocationFetcher(
 
 /**
  * Obtain periodic location updates from the device. The [LocationResult] is delivered to all
- * children composable by [LocalLocationFetcher.current].
+ * children composable by a [CompositionLocal]: [LocalLocationFetcher.current].
  *
  * [LocationRequest] configurations can be set by [requestConfig].
  *
- * A custom rationale UI will be used to present the user a rationale for requesting the location
- * permissions. **The rationale UI must call the `onRationaleDismissed` callback once user dismisses
- * the UI**. The callback will be the trigger for actually asking for the location permissions.
+ * If the location permissions are not granted by the user, this [Composable] will request them
+ * to the user. If the Android framework tells that a rationale for requesting the permissions must
+ * be presented, a [custom rationale UI][rationaleUi] will be used. **The rationale UI must call
+ * the `onRationaleDismissed` callback once user dismisses the UI**. The callback will be the
+ * trigger for actually asking for the location permissions.
  *
  * If you prefer to use a predefined rationale UI instead, see the overload that takes in a
  * rationale String instead of a rationale UI.
+ *
+ * Once location permissions are granted by the user, this [Composable] will check whether location
+ * settings are enabled in the Android settings, asking the user to enable them in case they're
+ * disabled. This UI is not customizable.
  *
  * Example:
  *
@@ -136,12 +157,14 @@ public fun LocationFetcher(
             setLocation = state::updateLocation
         )
     }
-    val locationState by derivedStateOf {
-        LocationState(
-            locationResult = state.location?.locationResult,
-            settingEnabled = state.settingEnabled,
-            permissionsGranted = state.permissionsGranted
-        )
+    val locationState by remember {
+        derivedStateOf {
+            LocationState(
+                locationResult = state.location?.locationResult,
+                settingEnabled = state.settingEnabled,
+                permissionsGranted = state.permissionsGranted
+            )
+        }
     }
     CompositionLocalProvider(
         LocalLocationFetcher provides locationState,
