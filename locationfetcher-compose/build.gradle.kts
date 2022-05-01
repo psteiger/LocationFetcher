@@ -11,10 +11,11 @@ group = "app.freel"
 version = "9.0.0"
 
 android {
-    compileSdk = 31
+    compileSdk = 32
     defaultConfig {
-        minSdk = 16
-        targetSdk = 31
+        minSdk = 21
+        targetSdk = 32
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
@@ -23,10 +24,17 @@ android {
     kotlinOptions {
         freeCompilerArgs += listOf(
             "-Xexplicit-api=strict",
-            "-Xopt-in=kotlinx.coroutines.ExperimentalCoroutinesApi"
+            "-P",
+            "plugin:androidx.compose.compiler.plugins.kotlin:reportsDestination=${buildDir}/composeReports"
         )
         jvmTarget = "1.8"
         languageVersion = "1.6"
+    }
+    buildFeatures {
+        compose = true
+    }
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.2.0-alpha08"
     }
 }
 
@@ -43,7 +51,7 @@ afterEvaluate {
                 from(components["release"])
                 groupId = "app.freel"
                 version = "9.0.0"
-                artifactId = project.name
+                artifactId = "locationfetcher-compose"
                 artifact(sourcesJar).apply {
                     classifier = "sources"
                 }
@@ -84,15 +92,14 @@ signing {
 }
 
 dependencies {
-    api("io.arrow-kt:arrow-core:1.0.1")
     api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.1")
     api("com.google.android.gms:play-services-location:19.0.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.6.1")
-    implementation("androidx.activity:activity-ktx:1.4.0")
-    implementation("androidx.fragment:fragment-ktx:1.4.1")
-    implementation("androidx.appcompat:appcompat:1.4.1")
-    implementation("androidx.core:core-ktx:1.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.4.1")
-    implementation("androidx.lifecycle:lifecycle-common:2.4.1")
-    implementation("javax.inject:javax.inject:1")
+    implementation("androidx.compose.runtime:runtime:1.2.0-alpha08")
+    implementation("androidx.compose.ui:ui:1.2.0-alpha08")
+    implementation("androidx.activity:activity-compose:1.4.0")
+    implementation("androidx.compose.material3:material3:1.0.0-alpha10")
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test:runner:1.4.0")
+    androidTestImplementation("androidx.test:rules:1.4.0")
 }

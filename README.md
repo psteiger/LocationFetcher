@@ -2,6 +2,8 @@
 
 [![Download](https://img.shields.io/maven-central/v/app.freel/locationfetcher)](https://search.maven.org/artifact/app.freel/locationfetcher)
 
+> :warning: If you're using Jetpack Compose, see [this README](locationfetcher-compose/README.md) instead.
+
 Simple location fetcher for Android Apps built with Kotlin and Coroutines.
 
 Building location-aware Android apps can be a bit tricky. This library makes it as simple as:
@@ -79,7 +81,7 @@ On app-level `build.gradle`, add dependency:
 
 ```kotlin
 dependencies {
-  implementation("app.freel:locationfetcher:8.2.2")
+  implementation("app.freel:locationfetcher:9.0.0")
 }
 ```
 

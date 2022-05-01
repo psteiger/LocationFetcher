@@ -26,9 +26,12 @@ jobs:
          java-version: 11
 
         # Builds the release artifacts of the library
-      - name: Release build
+      - name: Release LocationFetcher build
         run: ./gradlew :locationfetcher:assembleRelease
-          
+
+      - name: Release LocationFetcher-compose build
+        run: ./gradlew :locationfetcher-compose:assembleRelease
+
         # Generates other artifacts (javadocJar is optional)
       - name: Source jar and dokka
         run: ./gradlew androidSourcesJar
