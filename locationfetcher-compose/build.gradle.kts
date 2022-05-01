@@ -8,13 +8,14 @@ plugins {
 apply(from = "$rootDir/scripts/publish-root.gradle.kts")
 
 group = "app.freel"
-version = "8.2.7"
+version = "8.2.8"
 
 android {
     compileSdk = 32
     defaultConfig {
-        minSdk = 16
+        minSdk = 21
         targetSdk = 32
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
@@ -23,6 +24,8 @@ android {
     kotlinOptions {
         freeCompilerArgs += listOf(
             "-Xexplicit-api=strict",
+            "-P",
+            "plugin:androidx.compose.compiler.plugins.kotlin:reportsDestination=${buildDir}/composeReports"
         )
         jvmTarget = "1.8"
         languageVersion = "1.6"
@@ -47,7 +50,7 @@ afterEvaluate {
             register<MavenPublication>("release") {
                 from(components["release"])
                 groupId = "app.freel"
-                version = "8.2.7"
+                version = "8.2.8"
                 artifactId = "locationfetcher-compose"
                 artifact(sourcesJar).apply {
                     classifier = "sources"
@@ -96,4 +99,7 @@ dependencies {
     implementation("androidx.compose.ui:ui:1.2.0-alpha08")
     implementation("androidx.activity:activity-compose:1.4.0")
     implementation("androidx.compose.material3:material3:1.0.0-alpha10")
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test:runner:1.4.0")
+    androidTestImplementation("androidx.test:rules:1.4.0")
 }

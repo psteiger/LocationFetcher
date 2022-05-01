@@ -14,8 +14,8 @@ import androidx.core.content.ContextCompat
 
 @Composable
 internal fun PermissionRequest(
-    hasPermissions: Boolean,
-    setHasPermissions: (Boolean) -> Unit,
+    permissionsGranted: Boolean,
+    setPermissionsGranted: (Boolean) -> Unit,
     rationaleDismissed: Boolean,
     rationale: @Composable () -> Unit,
 ) {
@@ -24,10 +24,10 @@ internal fun PermissionRequest(
 
     val requester = rememberPermissionRequester { result ->
         val hasAllPermissions = result.values.all { it }
-        setHasPermissions(hasAllPermissions)
+        setPermissionsGranted(hasAllPermissions)
     }
     val shouldShowRationale = activity?.shouldShowLocationPermissionsRationale() == true
-    if (!hasPermissions) {
+    if (!permissionsGranted) {
         if (shouldShowRationale && !rationaleDismissed) {
             rationale()
         } else {

@@ -13,7 +13,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.ResolvableApiException
-import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.LocationSettingsRequest
 import com.google.android.gms.location.SettingsClient
@@ -24,52 +23,62 @@ import kotlin.coroutines.resume
 
 @Composable
 internal fun SettingsRequest(
-    locationRequest: LocationRequest,
-    onResult: (Boolean) -> Unit = {}
+    locationRequest: LocationRequestWrapper,
+    setSettingEnabled: (Boolean) -> Unit,
 ) {
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val client = rememberSettingsClient()
-    val request = remember(locationRequest) {
-        LocationSettingsRequest.Builder()
-            .addLocationRequest(locationRequest)
-            .build()
+    val state = remember { SettingsRequestState() }
+    val context = rememberSettingsRequestContext(
+        locationRequest = locationRequest,
+        onResult = state::handleActivityResult
+    )
+    SettingsRequest(
+        state = state,
+        context = context,
+        setSettingEnabled = setSettingEnabled
+    )
+}
+
+// ---- Implementation ----
+
+@Composable
+private fun SettingsRequest(
+    state: SettingsRequestState,
+    context: SettingsRequestContext,
+    setSettingEnabled: (Boolean) -> Unit
+) {
+    with(context) {
+        LaunchRepeatCheckSettings(state = state)
+        LaunchMaybeResolve(state = state)
     }
-    val resolver = rememberResolutionResolver {
-        onResult(it.resultCode == Activity.RESULT_OK)
-    }
-    val result by produceState<SettingsState?>(null, client, request, lifecycle) {
-        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            value = client.checkLocationSettingsForRequest(request)
-        }
-    }
-    when (result) {
-        is SettingsState.Resolvable -> {
-            val resolutionIntent = (result as SettingsState.Resolvable).exception.resolution
-            val resolutionRequest = IntentSenderRequest.Builder(resolutionIntent).build()
-            SideEffect {
-                resolver.launch(resolutionRequest)
-            }
-        }
-        SettingsState.Resolved -> onResult(true)
-        SettingsState.Unresolvable -> onResult(false)
-        null -> {}
+    state.isSettingEnabled?.let(setSettingEnabled)
+}
+
+@Composable
+private fun SettingsRequestContext.LaunchRepeatCheckSettings(state: SettingsRequestState) {
+    LaunchedEffect(this, state) {
+        repeatCheckSettingsState(state)
     }
 }
 
 @Composable
-private fun rememberResolutionResolver(
-    onResult: (ActivityResult) -> Unit
-): ResolutionResolver = rememberLauncherForActivityResult(
-    ActivityResultContracts.StartIntentSenderForResult(),
-    onResult
-)
+private fun SettingsRequestContext.LaunchMaybeResolve(state: SettingsRequestState) {
+    LaunchedEffect(this, state, state.isResolvable, state.userRefused) {
+        maybeResolve(state)
+    }
+}
 
-private typealias ResolutionResolver = ManagedActivityResultLauncher<IntentSenderRequest, ActivityResult>
-
-private sealed class SettingsState {
-    object Resolved : SettingsState()
-    object Unresolvable : SettingsState()
-    data class Resolvable(val exception: ResolvableApiException) : SettingsState()
+@Composable
+private fun rememberSettingsRequestContext(
+    locationRequest: LocationRequestWrapper,
+    onResult: (ActivityResult) -> Unit,
+): SettingsRequestContext {
+    val lifecycle: Lifecycle = LocalLifecycleOwner.current.lifecycle
+    val client: SettingsClient = rememberSettingsClient()
+    val request: LocationSettingsRequest = rememberLocationSettingsRequest(locationRequest)
+    val resolver = rememberResolutionResolver(onResult)
+    return remember(lifecycle, client, request, resolver) {
+        SettingsRequestContext(lifecycle, client, request, resolver)
+    }
 }
 
 @Composable
@@ -83,6 +92,51 @@ private fun rememberSettingsClient(): SettingsClient {
         }
     }
 }
+
+@Composable
+private fun rememberLocationSettingsRequest(locationRequest: LocationRequestWrapper) =
+    remember(locationRequest) {
+        LocationSettingsRequest.Builder()
+            .addLocationRequest(locationRequest.locationRequest)
+            .build()
+    }
+
+@Composable
+private fun rememberResolutionResolver(
+    onResult: (ActivityResult) -> Unit
+): ResolutionResolver = rememberLauncherForActivityResult(
+    ActivityResultContracts.StartIntentSenderForResult(),
+    onResult
+)
+
+private fun SettingsRequestState.handleActivityResult(activityResult: ActivityResult) {
+    when (activityResult.resultCode) {
+        Activity.RESULT_OK -> settingsState = SettingsState.Resolved
+        else -> userRefused = true
+    }
+}
+
+private suspend fun SettingsRequestContext.repeatCheckSettingsState(state: SettingsRequestState) {
+    lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+        state.apply {
+            userRefused = false
+            settingsState = checkLocationSettings()
+        }
+    }
+}
+
+private fun SettingsRequestContext.maybeResolve(state: SettingsRequestState) {
+    state.userRefused.takeIf { !it } ?: return
+    val resolvable = state.settingsState as? SettingsState.Resolvable ?: return
+    val intent = resolvable.exception.resolution
+    val request = IntentSenderRequest.Builder(intent).build()
+    resolver.launch(request)
+}
+
+private suspend fun SettingsRequestContext.checkLocationSettings() =
+    client.checkLocationSettingsForRequest(request)
+
+private typealias ResolutionResolver = ManagedActivityResultLauncher<IntentSenderRequest, ActivityResult>
 
 private suspend fun SettingsClient.checkLocationSettingsForRequest(
     request: LocationSettingsRequest,
@@ -109,3 +163,31 @@ private suspend inline fun <T> Task<T>.awaitComplete(): Task<out T> =
             else continuation.resume(it)
         }
     }
+
+private val SettingsRequestState.isSettingEnabled: Boolean?
+    get() = when (settingsState) {
+        null -> null
+        SettingsState.Resolved -> true
+        else -> false
+    }
+
+private data class SettingsRequestContext(
+    val lifecycle: Lifecycle,
+    val client: SettingsClient,
+    val request: LocationSettingsRequest,
+    val resolver: ResolutionResolver,
+)
+
+private class SettingsRequestState {
+    var settingsState by mutableStateOf<SettingsState?>(null)
+    var userRefused by mutableStateOf(false)
+
+    // avoid launching different effects as two Resolvable instances can be different
+    val isResolvable by derivedStateOf { settingsState is SettingsState.Resolvable }
+}
+
+private sealed class SettingsState {
+    object Resolved : SettingsState()
+    object Unresolvable : SettingsState()
+    data class Resolvable(@Stable val exception: ResolvableApiException) : SettingsState()
+}

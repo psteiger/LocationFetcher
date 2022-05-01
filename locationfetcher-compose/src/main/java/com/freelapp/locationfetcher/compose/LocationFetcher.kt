@@ -1,23 +1,24 @@
 package com.freelapp.locationfetcher.compose
 
-import android.annotation.SuppressLint
-import android.location.Location
-import android.os.Looper
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.repeatOnLifecycle
-import com.google.android.gms.location.*
-import kotlinx.coroutines.awaitCancellation
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+
+@Immutable
+public data class LocationState(
+    val locationResult: LocationResult?,
+    val settingEnabled: Boolean?,
+    val permissionsGranted: Boolean
+)
 
 /**
- * Obtain periodic location updates from the device. Location is delivered to all children
- * composable by [LocalLocationFetcher.current].
+ * Obtain periodic location updates from the device. The [LocationResult] is delivered to all
+ * children composable by [LocalLocationFetcher.current].
  *
  * [LocationRequest] configurations can be set by [requestConfig].
  *
@@ -38,10 +39,10 @@ import kotlinx.coroutines.awaitCancellation
  *         },
  *         rationale = "We need your location for searching restaurants nearby."
  *     ) {
- *         val location = LocalLocationFetcher.current
- *         when (location) {
+ *         val (locationResult, settingEnabled, permissionsGranted) = LocalLocationFetcher.current
+ *         when (locationResult) {
  *             null -> MissingLocation()
- *             else -> NearbyRestaurants(location)
+ *             else -> NearbyRestaurants(locationResult)
  *         }
  *     }
  * }
@@ -53,7 +54,7 @@ public fun LocationFetcher(
     rationale: String,
     content: @Composable () -> Unit
 ) {
-    val rationaleUi: RationaleUi = remember {
+    val rationaleUi: RationaleUi = remember(rationale) {
         { onRationaleDismissed ->
             Rationale(
                 text = rationale,
@@ -69,14 +70,17 @@ public fun LocationFetcher(
 }
 
 /**
- * Obtain periodic location updates from the device. Location is delivered to all children
- * composable by [LocalLocationFetcher.current].
+ * Obtain periodic location updates from the device. The [LocationResult] is delivered to all
+ * children composable by [LocalLocationFetcher.current].
  *
  * [LocationRequest] configurations can be set by [requestConfig].
  *
  * A custom rationale UI will be used to present the user a rationale for requesting the location
  * permissions. **The rationale UI must call the `onRationaleDismissed` callback once user dismisses
  * the UI**. The callback will be the trigger for actually asking for the location permissions.
+ *
+ * If you prefer to use a predefined rationale UI instead, see the overload that takes in a
+ * rationale String instead of a rationale UI.
  *
  * Example:
  *
@@ -95,17 +99,14 @@ public fun LocationFetcher(
  *             )
  *         },
  *     ) {
- *         val location = LocalLocationFetcher.current
- *         when (location) {
+ *         val (locationResult, settingEnabled, permissionsGranted) = LocalLocationFetcher.current
+ *         when (locationResult) {
  *             null -> MissingLocation()
- *             else -> NearbyRestaurants(location)
+ *             else -> NearbyRestaurants(locationResult)
  *         }
  *     }
  * }
  * ```
- *
- * If you prefer to use a custom composable instead, see the [LocationFetcher] overload that takes
- * in a rationale UI instead of a rationale String.
  */
 @Composable
 public fun LocationFetcher(
@@ -114,39 +115,54 @@ public fun LocationFetcher(
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
-    var hasPermissions by remember { mutableStateOf(context.hasLocationPermissions()) }
-    var rationaleDismissed by remember { mutableStateOf(false) }
-    val setHasPermissions: (Boolean) -> Unit = remember {
-        {
-            rationaleDismissed = false
-            hasPermissions = it
-        }
-    }
+    val state = remember { LocationContext(context.hasLocationPermissions()) }
     PermissionRequest(
-        hasPermissions = hasPermissions,
-        setHasPermissions = setHasPermissions,
-        rationaleDismissed = rationaleDismissed,
-        rationale = { rationaleUi { rationaleDismissed = true } },
-    )
-    if (hasPermissions) {
-        val locationRequest = rememberLocationRequest(requestConfig)
-        SettingsRequest(locationRequest)
-        LocationProvider(locationRequest, content)
+        permissionsGranted = state.permissionsGranted,
+        setPermissionsGranted = state::updatePermissionsGranted,
+        rationaleDismissed = state.rationaleDismissed
+    ) {
+        rationaleUi(
+            onRationaleDismissed = state::rationaleDismissed
+        )
     }
+    if (state.permissionsGranted) {
+        val locationRequest = rememberLocationRequest(requestConfig)
+        SettingsRequest(
+            locationRequest = locationRequest,
+            setSettingEnabled = state::updateSettingEnabled
+        )
+        LocationProvider(
+            locationRequest = locationRequest,
+            setLocation = state::updateLocation
+        )
+    }
+    val locationState by derivedStateOf {
+        LocationState(
+            locationResult = state.location?.locationResult,
+            settingEnabled = state.settingEnabled,
+            permissionsGranted = state.permissionsGranted
+        )
+    }
+    CompositionLocalProvider(
+        LocalLocationFetcher provides locationState,
+        content = content
+    )
 }
 
 public object LocalLocationFetcher {
     private val LocalLocationFetcher =
-        compositionLocalOf<Location?> { null }
+        compositionLocalOf<LocationState> {
+            throw IllegalStateException("Can only be called through LocationFetcher")
+        }
 
-    public val current: Location?
+    public val current: LocationState
         @Composable
         get() = LocalLocationFetcher.current
 
     internal infix fun provides(
-        location: Location?
-    ): ProvidedValue<Location?> =
-        LocalLocationFetcher.provides(location)
+        location: LocationState
+    ): ProvidedValue<LocationState> =
+        LocalLocationFetcher provides location
 }
 
 public typealias RationaleUi = @Composable (onRationaleDismissed: () -> Unit) -> Unit
@@ -170,54 +186,36 @@ private fun Rationale(
 }
 
 @Composable
-private fun rememberLocationRequest(
-    requestConfig: LocationRequest.() -> Unit
-) = remember(requestConfig) {
-    LocationRequest.create().apply(requestConfig)
-}
-
-@SuppressLint("MissingPermission")
-@Composable
-private fun LocationProvider(
-    locationRequest: LocationRequest,
-    content: @Composable () -> Unit
-) {
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val client = rememberFusedLocationClient()
-    val location by produceState<Location?>(null, client, locationRequest, lifecycle) {
-        val callback = locationCallback()
-        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            try {
-                client.requestLocationUpdates(locationRequest, callback, Looper.getMainLooper())
-                awaitCancellation()
-            } finally {
-                client.removeLocationUpdates(callback)
-            }
-        }
-    }
-    CompositionLocalProvider(
-        LocalLocationFetcher provides location,
-        content = content
-    )
-}
-
-@Composable
-private fun rememberFusedLocationClient(): FusedLocationProviderClient {
-    val context = LocalContext.current
-    val activity = context.getActivity()
-    return remember(context, activity) {
-        when (activity) {
-            null -> LocationServices.getFusedLocationProviderClient(context)
-            else -> LocationServices.getFusedLocationProviderClient(activity)
-        }
-    }
-}
-
-private fun ProduceStateScope<Location?>.locationCallback() = object : LocationCallback() {
-    override fun onLocationResult(locationResult: LocationResult) {
-        value = locationResult.lastLocation
+private fun rememberLocationRequest(requestConfig: LocationRequest.() -> Unit) =
+    remember(requestConfig) {
+        LocationRequestWrapper(LocationRequest.create().apply(requestConfig))
     }
 
-    override fun onLocationAvailability(locationAvailability: LocationAvailability) {
+@Stable
+private class LocationContext(permissionsGranted: Boolean) {
+    var location by mutableStateOf<LocationResultWrapper?>(null)
+        private set
+    var permissionsGranted by mutableStateOf(permissionsGranted)
+        private set
+    var settingEnabled by mutableStateOf<Boolean?>(null)
+        private set
+    var rationaleDismissed by mutableStateOf(false)
+        private set
+
+    fun updatePermissionsGranted(granted: Boolean) {
+        rationaleDismissed = false
+        permissionsGranted = granted
+    }
+
+    fun updateSettingEnabled(enabled: Boolean) {
+        settingEnabled = enabled
+    }
+
+    fun updateLocation(location: LocationResultWrapper?) {
+        this.location = location
+    }
+
+    fun rationaleDismissed() {
+        rationaleDismissed = true
     }
 }
